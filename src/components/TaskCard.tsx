@@ -35,16 +35,14 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onTaskClick }) => {
           onClick={handleClick}
           className={`group relative bg-white rounded-lg p-3 border border-gray-200 shadow-sm cursor-grab active:cursor-grabbing transition-all duration-200 animate-slide-in-from-bottom hover:shadow-lg overflow-hidden ${
             snapshot.isDragging 
-              ? 'shadow-2xl rotate-2 scale-110 ring-4 ring-blue-400 ring-opacity-50 z-50 transform-gpu' 
+              ? 'shadow-2xl rotate-2 scale-110 ring-4 ring-blue-400 ring-opacity-50 z-50' 
               : isClicked
               ? 'scale-95 shadow-inner ring-2 ring-blue-300'
               : 'hover:scale-105 hover:-translate-y-2 hover:rotate-1'
           }`}
           style={{
             animationDelay: `${index * 100}ms`,
-            transform: snapshot.isDragging 
-              ? `rotate(2deg) scale(1.1) ${provided.draggableProps.style?.transform || ''}`
-              : provided.draggableProps.style?.transform,
+            // Remover override de transform quando está sendo arrastado para permitir movimento natural
             ...provided.draggableProps.style,
           }}
         >
