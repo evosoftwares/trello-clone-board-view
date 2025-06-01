@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Droppable } from '@hello-pangea/dnd';
 import TaskCard from './TaskCard';
@@ -19,9 +18,10 @@ interface Column {
 interface KanbanColumnProps {
   column: Column;
   onAddTask: (columnId: string, title: string) => void;
+  onTaskClick?: (task: Task) => void;
 }
 
-const KanbanColumn: React.FC<KanbanColumnProps> = ({ column, onAddTask }) => {
+const KanbanColumn: React.FC<KanbanColumnProps> = ({ column, onAddTask, onTaskClick }) => {
   const [isAdding, setIsAdding] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState('');
 
@@ -87,14 +87,19 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({ column, onAddTask }) => {
           <div
             ref={provided.innerRef}
             {...provided.droppableProps}
-            className={`space-y-3 min-h-[300px] transition-all duration-300 rounded-lg p-2 ${
+            className={`space-y-3 min-h-[300px] transition-all duration-200 rounded-lg p-2 ${
               snapshot.isDraggingOver 
-                ? 'bg-white/50 ring-2 ring-blue-300 ring-opacity-50 scale-102' 
+                ? 'bg-white/60 ring-4 ring-blue-400 ring-opacity-30 scale-105 shadow-inner transform-gpu' 
                 : ''
             }`}
           >
             {column.tasks.map((task, index) => (
-              <TaskCard key={task.id} task={task} index={index} />
+              <TaskCard 
+                key={task.id} 
+                task={task} 
+                index={index} 
+                onTaskClick={onTaskClick}
+              />
             ))}
             {provided.placeholder}
             

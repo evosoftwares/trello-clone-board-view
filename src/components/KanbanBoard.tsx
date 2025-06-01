@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import TeamMember from './TeamMember';
@@ -43,6 +42,8 @@ const KanbanBoard = () => {
 
     if (!start || !finish) return;
 
+    console.log(`Movendo tarefa ${draggableId} de ${source.droppableId} para ${destination.droppableId}`);
+
     if (start === finish) {
       const newTasks = Array.from(start.tasks);
       const [removed] = newTasks.splice(source.index, 1);
@@ -77,6 +78,8 @@ const KanbanBoard = () => {
       title,
     };
 
+    console.log(`Adicionando nova tarefa: ${title} na coluna ${columnId}`);
+
     const newColumns = columns.map(col => 
       col.id === columnId 
         ? { ...col, tasks: [...col.tasks, newTask] }
@@ -84,6 +87,11 @@ const KanbanBoard = () => {
     );
 
     setColumns(newColumns);
+  };
+
+  const handleTaskClick = (task: Task) => {
+    console.log(`Tarefa selecionada: ${task.title} (ID: ${task.id})`);
+    // Aqui você pode implementar a lógica para abrir detalhes da tarefa, editar, etc.
   };
 
   return (
@@ -139,6 +147,7 @@ const KanbanBoard = () => {
                   <KanbanColumn 
                     column={column} 
                     onAddTask={addTask}
+                    onTaskClick={handleTaskClick}
                   />
                 </div>
               ))}
