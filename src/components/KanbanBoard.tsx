@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import TeamMember from './TeamMember';
@@ -42,8 +43,6 @@ const KanbanBoard = () => {
 
     if (!start || !finish) return;
 
-    console.log(`Movendo tarefa ${draggableId} de ${source.droppableId} para ${destination.droppableId}`);
-
     if (start === finish) {
       const newTasks = Array.from(start.tasks);
       const [removed] = newTasks.splice(source.index, 1);
@@ -78,8 +77,6 @@ const KanbanBoard = () => {
       title,
     };
 
-    console.log(`Adicionando nova tarefa: ${title} na coluna ${columnId}`);
-
     const newColumns = columns.map(col => 
       col.id === columnId 
         ? { ...col, tasks: [...col.tasks, newTask] }
@@ -89,67 +86,38 @@ const KanbanBoard = () => {
     setColumns(newColumns);
   };
 
-  const handleTaskClick = (task: Task) => {
-    console.log(`Tarefa selecionada: ${task.title} (ID: ${task.id})`);
-    // Aqui você pode implementar a lógica para abrir detalhes da tarefa, editar, etc.
-  };
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-100 p-6 animate-fade-in">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-6">
       <div className="max-w-7xl mx-auto">
-        {/* Header com logo animado */}
-        <div className="flex items-center mb-8 animate-slide-in-from-top">
-          <div className="relative w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center shadow-lg transform hover:scale-110 transition-all duration-300 hover:shadow-xl animate-pulse-gentle">
-            <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center transform hover:rotate-180 transition-transform duration-500">
-              <div className="w-4 h-4 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full animate-bounce-subtle"></div>
+        {/* Header with blue circle logo */}
+        <div className="flex items-center mb-8">
+          <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center shadow-lg">
+            <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center">
+              <div className="w-4 h-4 bg-blue-500 rounded-full"></div>
             </div>
-            {/* Círculos orbitais */}
-            <div className="absolute inset-0 rounded-full border-2 border-blue-300 animate-spin-slow opacity-50"></div>
-            <div className="absolute inset-2 rounded-full border border-purple-300 animate-spin-slow-reverse opacity-30"></div>
-          </div>
-          <div className="ml-4 animate-slide-in-from-left">
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
-              Kanban Board
-            </h1>
           </div>
         </div>
 
-        {/* Seção da Equipe com animação escalonada */}
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-6 mb-8 transform hover:shadow-xl transition-all duration-300 animate-slide-in-from-bottom">
-          <h2 className="text-xl font-semibold text-gray-800 mb-6 animate-fade-in-delay-1">
-            <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-              Equipe
-            </span>
-          </h2>
+        {/* Team Section */}
+        <div className="bg-white rounded-2xl shadow-lg p-6 mb-8">
+          <h2 className="text-xl font-semibold text-gray-800 mb-6">Equipe</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {teamMembers.map((member, index) => (
-              <div 
-                key={member.id} 
-                className="animate-fade-in-scale"
-                style={{ animationDelay: `${index * 100}ms` }}
-              >
-                <TeamMember member={member} />
-              </div>
+            {teamMembers.map((member) => (
+              <TeamMember key={member.id} member={member} />
             ))}
           </div>
         </div>
 
-        {/* Colunas do Kanban com animação fluida */}
+        {/* Kanban Columns */}
         <DragDropContext onDragEnd={onDragEnd}>
-          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-6 transform hover:shadow-xl transition-all duration-300 animate-slide-in-from-bottom-delayed">
+          <div className="bg-white rounded-2xl shadow-lg p-6">
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-              {columns.map((column, index) => (
-                <div 
+              {columns.map((column) => (
+                <KanbanColumn 
                   key={column.id} 
-                  className="animate-slide-in-from-bottom"
-                  style={{ animationDelay: `${index * 150}ms` }}
-                >
-                  <KanbanColumn 
-                    column={column} 
-                    onAddTask={addTask}
-                    onTaskClick={handleTaskClick}
-                  />
-                </div>
+                  column={column} 
+                  onAddTask={addTask}
+                />
               ))}
             </div>
           </div>
