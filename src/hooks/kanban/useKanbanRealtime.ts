@@ -1,4 +1,3 @@
-
 import { useEffect, useRef } from 'react';
 import { useRealtimeContext } from '@/contexts/RealtimeContext';
 import { Task } from '@/types/database';
@@ -19,34 +18,36 @@ export const useKanbanRealtime = ({
   onDataChange
 }: UseKanbanRealtimeProps) => {
   const { subscribeToProject, unsubscribeFromProject, isConnected } = useRealtimeContext();
-  const isInitialized = useRef(false);
-  const currentProjectId = useRef<string | null>(null);
+  const lastProjectId = useRef<string | null>(null);
+  const callbacksRef = useRef({
+    onTaskInsert,
+    onTaskUpdate,
+    onTaskDelete,
+    onDataChange
+  });
+
+  // Always keep callbacks up to date
+  callbacksRef.current = {
+    onTaskInsert,
+    onTaskUpdate,
+    onTaskDelete,
+    onDataChange
+  };
 
   useEffect(() => {
-    // Only subscribe if project changed or first time
-    if (currentProjectId.current !== selectedProjectId) {
-      console.log('[KANBAN REALTIME] Project changed from', currentProjectId.current, 'to', selectedProjectId);
+    // Only resubscribe if project actually changed
+    if (lastProjectId.current !== selectedProjectId) {
+      console.log('[KANBAN REALTIME] Project changed:', lastProjectId.current, '->', selectedProjectId);
+      lastProjectId.current = selectedProjectId;
       
-      currentProjectId.current = selectedProjectId;
-      
-      subscribeToProject(selectedProjectId, {
-        onTaskInsert,
-        onTaskUpdate,
-        onTaskDelete,
-        onDataChange
-      });
-      
-      isInitialized.current = true;
+      subscribeToProject(selectedProjectId, callbacksRef.current);
     }
-  }, [selectedProjectId, subscribeToProject, onTaskInsert, onTaskUpdate, onTaskDelete, onDataChange]);
+  }, [selectedProjectId, subscribeToProject]);
 
   useEffect(() => {
     return () => {
       console.log('[KANBAN REALTIME] Hook cleanup');
-      if (isInitialized.current) {
-        unsubscribeFromProject();
-        isInitialized.current = false;
-      }
+      unsubscribeFromProject();
     };
   }, [unsubscribeFromProject]);
 
