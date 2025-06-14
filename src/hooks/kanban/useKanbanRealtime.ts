@@ -20,34 +20,19 @@ export const useKanbanRealtime = ({
 }: UseKanbanRealtimeProps) => {
   const channelRef = useRef<any>(null);
   const isSubscribedRef = useRef(false);
-  const cleanupTimeoutRef = useRef<NodeJS.Timeout>();
+  const subscriptionKeyRef = useRef<string>('');
 
   useEffect(() => {
-    console.log("[KANBAN REALTIME] Setting up realtime for project:", selectedProjectId);
+    const subscriptionKey = `${selectedProjectId || 'all'}-${Date.now()}`;
+    subscriptionKeyRef.current = subscriptionKey;
 
-    const setupRealtime = async () => {
-      // Clear any existing cleanup timeout
-      if (cleanupTimeoutRef.current) {
-        clearTimeout(cleanupTimeoutRef.current);
-      }
+    console.log("[KANBAN REALTIME] Setting up realtime for project:", selectedProjectId, "key:", subscriptionKey);
 
-      // Clean up existing channel if it exists
-      if (channelRef.current && isSubscribedRef.current) {
-        console.log("[KANBAN REALTIME] Cleaning up existing channel");
-        isSubscribedRef.current = false;
-        await supabase.removeChannel(channelRef.current);
-        channelRef.current = null;
-        
-        // Small delay to ensure cleanup is complete
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-
-      // Create unique channel name
-      const timestamp = Date.now();
-      const random = Math.random().toString(36).substring(7);
+    const setupRealtime = () => {
+      // Create unique channel name with timestamp
       const channelName = selectedProjectId
-        ? `kanban-project-${selectedProjectId}-${timestamp}-${random}`
-        : `kanban-all-${timestamp}-${random}`;
+        ? `kanban-project-${selectedProjectId}-${Date.now()}`
+        : `kanban-all-${Date.now()}`;
 
       console.log("[KANBAN REALTIME] Creating channel:", channelName);
 
@@ -55,6 +40,9 @@ export const useKanbanRealtime = ({
       const channel = supabase
         .channel(channelName)
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tasks' }, (payload) => {
+          // Check if this subscription is still current
+          if (subscriptionKeyRef.current !== subscriptionKey) return;
+          
           console.log('[KANBAN REALTIME] Task INSERT:', payload.new);
           const newTask = payload.new as Task;
           if (!selectedProjectId || newTask.project_id === selectedProjectId) {
@@ -62,28 +50,40 @@ export const useKanbanRealtime = ({
           }
         })
         .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'tasks' }, (payload) => {
+          // Check if this subscription is still current
+          if (subscriptionKeyRef.current !== subscriptionKey) return;
+          
           console.log('[KANBAN REALTIME] Task UPDATE:', payload.new);
           const updatedTask = payload.new as Task;
           onTaskUpdate(updatedTask);
         })
         .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'tasks' }, (payload) => {
+          // Check if this subscription is still current
+          if (subscriptionKeyRef.current !== subscriptionKey) return;
+          
           console.log('[KANBAN REALTIME] Task DELETE:', payload.old);
           onTaskDelete((payload.old as any).id);
         })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'kanban_columns' }, () => {
+          // Check if this subscription is still current
+          if (subscriptionKeyRef.current !== subscriptionKey) return;
+          
           console.log('[KANBAN REALTIME] Columns changed');
           onDataChange();
         })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'team_members' }, () => {
+          // Check if this subscription is still current
+          if (subscriptionKeyRef.current !== subscriptionKey) return;
+          
           console.log('[KANBAN REALTIME] Team members changed');
           onDataChange();
         });
 
       channelRef.current = channel;
 
-      // Subscribe to the channel
+      // Subscribe to the channel - only once per channel instance
       channel.subscribe((status: string) => {
-        console.log("[KANBAN REALTIME] Channel status:", status);
+        console.log("[KANBAN REALTIME] Channel status:", status, "for key:", subscriptionKey);
         if (status === 'SUBSCRIBED') {
           isSubscribedRef.current = true;
         } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
@@ -92,22 +92,48 @@ export const useKanbanRealtime = ({
       });
     };
 
-    setupRealtime();
+    // Clean up existing channel before setting up new one
+    const cleanupAndSetup = async () => {
+      if (channelRef.current && isSubscribedRef.current) {
+        console.log("[KANBAN REALTIME] Cleaning up existing channel before setup");
+        isSubscribedRef.current = false;
+        try {
+          await supabase.removeChannel(channelRef.current);
+        } catch (error) {
+          console.warn("[KANBAN REALTIME] Error during cleanup:", error);
+        }
+        channelRef.current = null;
+        
+        // Small delay to ensure cleanup is complete
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+
+      // Only setup if this subscription is still current
+      if (subscriptionKeyRef.current === subscriptionKey) {
+        setupRealtime();
+      }
+    };
+
+    cleanupAndSetup();
 
     // Cleanup function
     return () => {
-      console.log("[KANBAN REALTIME] Cleaning up realtime");
+      console.log("[KANBAN REALTIME] Cleaning up realtime for key:", subscriptionKey);
+      
+      // Mark this subscription as outdated
+      if (subscriptionKeyRef.current === subscriptionKey) {
+        subscriptionKeyRef.current = '';
+      }
       
       if (channelRef.current) {
         isSubscribedRef.current = false;
         
-        // Use timeout to ensure cleanup happens after component unmount
-        cleanupTimeoutRef.current = setTimeout(async () => {
-          if (channelRef.current) {
-            await supabase.removeChannel(channelRef.current);
-            channelRef.current = null;
-          }
-        }, 100);
+        // Immediate cleanup
+        supabase.removeChannel(channelRef.current).catch(error => {
+          console.warn("[KANBAN REALTIME] Error during cleanup:", error);
+        });
+        
+        channelRef.current = null;
       }
     };
   }, [selectedProjectId, onTaskInsert, onTaskUpdate, onTaskDelete, onDataChange]);
