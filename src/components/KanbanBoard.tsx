@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import ReactDOM from 'react-dom';
 import { DragDropContext } from '@hello-pangea/dnd';
 import TeamMember from './TeamMember';
@@ -95,11 +94,19 @@ const KanbanBoard = () => {
     }
   };
 
-  // Calculate task counts for team members
-  const teamMembersWithTaskCount = teamMembers.map(member => ({
-    ...member,
-    taskCount: tasks.filter(task => task.assignee === member.name).length
-  }));
+  // Calculate stats for team members
+  const teamMembersWithStats = useMemo(() => {
+    return teamMembers.map(member => {
+      const memberTasks = tasks.filter(task => task.assignee === member.name);
+      const totalFunctionPoints = memberTasks.reduce((sum, task) => sum + (task.function_points || 0), 0);
+      
+      return {
+        ...member,
+        taskCount: memberTasks.length,
+        functionPoints: totalFunctionPoints,
+      };
+    });
+  }, [teamMembers, tasks]);
 
   if (loading) {
     return (
@@ -149,7 +156,7 @@ const KanbanBoard = () => {
           <div className="bg-white rounded-2xl shadow-lg p-6 mb-8">
             <h2 className="text-xl font-semibold text-gray-800 mb-6">Equipe</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {teamMembersWithTaskCount.map((member) => (
+              {teamMembersWithStats.map((member) => (
                 <TeamMember key={member.id} member={member} />
               ))}
             </div>
