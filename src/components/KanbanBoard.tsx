@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, createContext, useContext } from 'react';
 import ReactDOM from 'react-dom';
 import { useForm } from 'react-hook-form';
@@ -280,11 +279,20 @@ const KanbanBoard = () => {
     }
   };
 
-  // Calculate stats for team members
+  // Calculate stats for team members - only count function points from "Concluído" column
   const teamMembersWithStats = useMemo(() => {
+    // Find the "Concluído" column
+    const completedColumn = columns.find(col => col.title === 'Concluído');
+    
     return teamMembers.map(member => {
       const memberTasks = tasks.filter(task => task.assignee === member.name);
-      const totalFunctionPoints = memberTasks.reduce((sum, task) => sum + (task.function_points || 0), 0);
+      
+      // Only count function points from completed tasks
+      const completedTasks = completedColumn 
+        ? memberTasks.filter(task => task.column_id === completedColumn.id)
+        : [];
+      
+      const totalFunctionPoints = completedTasks.reduce((sum, task) => sum + (task.function_points || 0), 0);
       
       return {
         ...member,
@@ -292,7 +300,7 @@ const KanbanBoard = () => {
         functionPoints: totalFunctionPoints,
       };
     });
-  }, [teamMembers, tasks]);
+  }, [teamMembers, tasks, columns]);
 
   if (loading) {
     return (
