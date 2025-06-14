@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { KanbanColumn, Task, TeamMember, Tag, TaskTag } from '@/types/database';
@@ -52,8 +51,13 @@ export const useKanbanData = (selectedProjectId?: string | null) => {
   useEffect(() => {
     fetchAllData();
 
+    // Create a unique channel name based on selected project to avoid conflicts
+    const channelName = selectedProjectId 
+      ? `kanban-realtime-${selectedProjectId}` 
+      : 'kanban-realtime-all';
+
     const channel = supabase
-      .channel('kanban-realtime-changes')
+      .channel(channelName)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tasks' }, (payload) => {
         console.log('Realtime: Task INSERT received', payload.new);
         const newTask = payload.new as Task;
@@ -96,9 +100,9 @@ export const useKanbanData = (selectedProjectId?: string | null) => {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      channel.unsubscribe();
     };
-  }, [fetchAllData]);
+  }, [fetchAllData, selectedProjectId]);
 
   const moveTask = async (taskId: string, newColumnId: string, newPosition: number) => {
     const originalTasks = tasks;
