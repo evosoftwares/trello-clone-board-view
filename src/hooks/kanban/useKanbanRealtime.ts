@@ -1,4 +1,3 @@
-
 import { useEffect } from 'react';
 import { useRealtimeContext } from '@/contexts/RealtimeContext';
 import { Task } from '@/types/database';
@@ -21,8 +20,9 @@ export const useKanbanRealtime = ({
   const { subscribeToProject, unsubscribeFromProject, isConnected } = useRealtimeContext();
 
   useEffect(() => {
-    // This effect handles subscribing to a project and updating callbacks.
-    // The context's subscribeToProject is smart enough to handle this efficiently.
+    // This effect now only runs when the selectedProjectId changes.
+    // The latest callbacks are passed to subscribeToProject, which uses a ref
+    // to keep them updated without needing them as dependencies here.
     console.log('[KANBAN REALTIME] Calling subscribeToProject for project:', selectedProjectId);
     subscribeToProject(selectedProjectId, {
       onTaskInsert,
@@ -30,7 +30,7 @@ export const useKanbanRealtime = ({
       onTaskDelete,
       onDataChange
     });
-  }, [selectedProjectId, onTaskInsert, onTaskUpdate, onTaskDelete, onDataChange, subscribeToProject]);
+  }, [selectedProjectId, subscribeToProject]);
 
   useEffect(() => {
     // This effect handles cleanup when the component unmounts for good.

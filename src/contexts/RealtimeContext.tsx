@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useRef, useEffect, ReactNode, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { RealtimeChannel } from '@supabase/supabase-js';
@@ -43,10 +42,9 @@ export const RealtimeProvider: React.FC<RealtimeProviderProps> = ({ children }) 
     if (channelRef.current) {
       console.log('[REALTIME MANAGER] Unsubscribing from channel', channelRef.current.topic);
       try {
-        // We don't wait for unsubscribe to avoid race conditions on quick changes.
-        // Supabase client handles channel cleanup.
-        channelRef.current.unsubscribe();
-        supabase.removeChannel(channelRef.current);
+        // Properly await the unsubscribe and remove operations to prevent race conditions.
+        await channelRef.current.unsubscribe();
+        await supabase.removeChannel(channelRef.current);
       } catch (error) {
         console.error('[REALTIME MANAGER] Error unsubscribing:', error);
       } finally {
@@ -126,8 +124,8 @@ export const RealtimeProvider: React.FC<RealtimeProviderProps> = ({ children }) 
       
       if (status === 'SUBSCRIBED') {
         setIsConnected(true);
-      } else if (status === 'CHANNEL_ERROR') {
-        console.error('[REALTIME MANAGER] Channel error:', err);
+      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        console.error('[REALTIME MANAGER] Channel error or timeout:', err);
         setIsConnected(false);
         unsubscribeFromProject();
       } else if (status === 'CLOSED') {
