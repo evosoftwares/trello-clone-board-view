@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { KanbanColumn, Task, TeamMember, Tag, TaskTag } from '@/types/database';
 
@@ -10,6 +10,7 @@ export const useKanbanData = (selectedProjectId?: string | null) => {
   const [taskTags, setTaskTags] = useState<TaskTag[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const channelRef = useRef<any>(null);
 
   const fetchAllData = useCallback(async () => {
     try {
@@ -51,13 +52,20 @@ export const useKanbanData = (selectedProjectId?: string | null) => {
   useEffect(() => {
     fetchAllData();
 
-    // Create a unique channel name based on selected project and timestamp to avoid conflicts
+    // Clean up any existing channel first
+    if (channelRef.current) {
+      console.log('Cleaning up existing channel');
+      channelRef.current.unsubscribe();
+      channelRef.current = null;
+    }
+
+    // Create a unique channel name with timestamp to avoid conflicts
     const timestamp = Date.now();
     const channelName = selectedProjectId 
       ? `kanban-${selectedProjectId}-${timestamp}` 
       : `kanban-all-${timestamp}`;
 
-    console.log('Creating channel:', channelName);
+    console.log('Creating new channel:', channelName);
 
     const channel = supabase
       .channel(channelName)
@@ -99,16 +107,24 @@ export const useKanbanData = (selectedProjectId?: string | null) => {
         setTasks(currentTasks => currentTasks.filter(task => task.id !== (payload.old as any).id));
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'kanban_columns' }, () => fetchAllData())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'team_members' }, () => fetchAllData())
-      .subscribe((status) => {
-        console.log('Channel subscription status:', status);
-      });
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'team_members' }, () => fetchAllData());
+
+    // Store the channel reference
+    channelRef.current = channel;
+
+    // Subscribe to the channel
+    channel.subscribe((status) => {
+      console.log('Channel subscription status:', status);
+    });
 
     return () => {
-      console.log('Unsubscribing from channel:', channelName);
-      channel.unsubscribe();
+      console.log('Cleanup: Unsubscribing from channel:', channelName);
+      if (channelRef.current) {
+        channelRef.current.unsubscribe();
+        channelRef.current = null;
+      }
     };
-  }, [fetchAllData, selectedProjectId]);
+  }, [selectedProjectId]);
 
   const moveTask = async (taskId: string, newColumnId: string, newPosition: number) => {
     const originalTasks = tasks;
