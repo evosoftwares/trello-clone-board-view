@@ -1,18 +1,20 @@
-
 import React, { useState, useEffect, useMemo, createContext, useContext } from 'react';
 import ReactDOM from 'react-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { DragDropContext } from '@hello-pangea/dnd';
-import { Trash, User, Clock, Target, Save } from 'lucide-react';
+import { Trash, User, Clock, Target, Save, Settings } from 'lucide-react';
 
 import TeamMember from './TeamMember';
 import KanbanColumn from './KanbanColumn';
+import { ProjectSelector } from './projects/ProjectSelector';
+import { ProjectModal } from './projects/ProjectModal';
 import Confetti from 'react-confetti';
 import { useKanbanData } from '@/hooks/useKanbanData';
+import { useProjectData } from '@/hooks/useProjectData';
 import { useToast } from '@/hooks/use-toast';
-import { Task, TeamMember as TeamMemberType, Tag, TaskTag } from '@/types/database';
+import { Task, TeamMember as TeamMemberType, Tag, TaskTag, Project } from '@/types/database';
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
@@ -23,12 +25,12 @@ import { Button } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 // --- Kanban Context ---
-// Due to project constraints, the context and modal are defined here.
 interface KanbanContextType {
   openTaskModal: (task: Task) => void;
   teamMembers: TeamMemberType[];
   tags: Tag[];
   taskTags: TaskTag[];
+  projects: Project[];
   updateTask: (taskId: string, updates: Partial<Omit<Task, 'id'>>) => Promise<void>;
   deleteTask: (taskId: string) => Promise<void>;
 }
@@ -48,6 +50,7 @@ const taskFormSchema = z.object({
   assignee: z.string().optional(),
   function_points: z.coerce.number().min(0).optional(),
   complexity: z.enum(['low', 'medium', 'high']),
+  project_id: z.string().min(1, 'Projeto é obrigatório.'),
 });
 
 interface TaskDetailModalProps {
@@ -59,7 +62,7 @@ interface TaskDetailModalProps {
 const UNASSIGNED_VALUE = 'unassigned-sentinel';
 
 const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, isOpen, onClose }) => {
-  const { teamMembers, updateTask, deleteTask } = useKanban();
+  const { teamMembers, updateTask, deleteTask, projects } = useKanban();
   const { toast } = useToast();
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -72,6 +75,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, isOpen, onClose
       assignee: task.assignee || UNASSIGNED_VALUE,
       function_points: task.function_points || 0,
       complexity: task.complexity || 'medium',
+      project_id: task.project_id || '',
     },
   });
 
@@ -82,6 +86,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, isOpen, onClose
       assignee: task.assignee || UNASSIGNED_VALUE,
       function_points: task.function_points || 0,
       complexity: task.complexity || 'medium',
+      project_id: task.project_id || '',
     });
   }, [task, form]);
 
@@ -145,6 +150,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, isOpen, onClose
   };
 
   const complexityConfig = getComplexityConfig(form.watch('complexity'));
+  const selectedProject = projects.find(p => p.id === form.watch('project_id'));
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -155,12 +161,54 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, isOpen, onClose
               <Target className="w-5 h-5 text-blue-600" />
             </div>
             Editar Tarefa
+            {selectedProject && (
+              <div 
+                className="ml-auto px-3 py-1 rounded-full text-sm font-medium"
+                style={{ 
+                  backgroundColor: selectedProject.color + '20', 
+                  color: selectedProject.color 
+                }}
+              >
+                {selectedProject.name}
+              </div>
+            )}
           </DialogTitle>
         </DialogHeader>
         
         <div className="px-8 pb-8 overflow-y-auto">
           <Form {...form}>
             <form id="edit-task-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              {/* Project Field */}
+              <FormField control={form.control} name="project_id" render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                    <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
+                    Projeto *
+                  </FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger className="h-12 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200">
+                        <SelectValue placeholder="Selecione um projeto" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent className="rounded-xl border-gray-200 shadow-xl">
+                      {projects.map(project => (
+                        <SelectItem key={project.id} value={project.id} className="rounded-lg">
+                          <div className="flex items-center gap-3">
+                            <div 
+                              className="w-3 h-3 rounded-full"
+                              style={{ backgroundColor: project.color }}
+                            />
+                            {project.name}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage className="text-rose-600 text-xs" />
+                </FormItem>
+              )} />
+
               {/* Title Field */}
               <FormField control={form.control} name="title" render={({ field }) => (
                 <FormItem>
@@ -366,6 +414,9 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, isOpen, onClose
 
 // --- Main Kanban Board Component ---
 const KanbanBoard = () => {
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [showProjectModal, setShowProjectModal] = useState(false);
+  
   const { 
     columns, 
     tasks, 
@@ -378,8 +429,9 @@ const KanbanBoard = () => {
     createTask, 
     updateTask, 
     deleteTask 
-  } = useKanbanData();
+  } = useKanbanData(selectedProjectId);
   
+  const { projects } = useProjectData();
   const { toast } = useToast();
   const [runConfetti, setRunConfetti] = useState(false);
   const [windowSize, setWindowSize] = useState({
@@ -448,7 +500,17 @@ const KanbanBoard = () => {
 
   const handleAddTask = async (columnId: string, title: string) => {
     try {
-      await createTask(columnId, title);
+      // If no project selected, show warning
+      if (!selectedProjectId) {
+        toast({
+          title: "Atenção",
+          description: "Selecione um projeto antes de criar uma tarefa.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      await createTask(columnId, title, selectedProjectId);
       toast({
         title: "Sucesso",
         description: "Nova tarefa criada!",
@@ -493,7 +555,7 @@ const KanbanBoard = () => {
   }
 
   const contextValue = {
-    openTaskModal, teamMembers, tags, taskTags, updateTask, deleteTask
+    openTaskModal, teamMembers, tags, taskTags, projects, updateTask, deleteTask
   };
 
   return (
@@ -521,12 +583,27 @@ const KanbanBoard = () => {
       )}
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-6">
         <div className="max-w-7xl mx-auto">
-          {/* Header with Logo and Button */}
+          {/* Header with Logo, Project Selector and Buttons */}
           <div className="flex items-center justify-between mb-1">
-            <img src="/imagens/logo.svg" alt="Logo" className="w-32 h-32" />
-            <button className="bg-blue-500 hover:bg-blue-600 text-white font-semibold text-sm py-2 px-6 rounded-full transition-colors duration-200">
-              Protocolos
-            </button>
+            <div className="flex items-center gap-6">
+              <img src="/imagens/logo.svg" alt="Logo" className="w-32 h-32" />
+              <ProjectSelector 
+                selectedProjectId={selectedProjectId}
+                onSelect={setSelectedProjectId}
+              />
+            </div>
+            <div className="flex gap-3">
+              <Button 
+                onClick={() => setShowProjectModal(true)}
+                className="bg-green-500 hover:bg-green-600 text-white font-semibold text-sm py-2 px-6 rounded-full transition-colors duration-200"
+              >
+                <Settings className="w-4 h-4 mr-2" />
+                Gerenciar Projetos
+              </Button>
+              <Button className="bg-blue-500 hover:bg-blue-600 text-white font-semibold text-sm py-2 px-6 rounded-full transition-colors duration-200">
+                Protocolos
+              </Button>
+            </div>
           </div>
 
           {/* Team Section */}
@@ -550,6 +627,7 @@ const KanbanBoard = () => {
                     tasks={tasks}
                     tags={tags}
                     taskTags={taskTags}
+                    projects={projects}
                     onAddTask={handleAddTask}
                   />
                 ))}
@@ -558,6 +636,7 @@ const KanbanBoard = () => {
           </DragDropContext>
         </div>
       </div>
+      
       {selectedTask && (
         <TaskDetailModal 
           task={selectedTask}
@@ -565,6 +644,11 @@ const KanbanBoard = () => {
           onClose={closeTaskModal}
         />
       )}
+      
+      <ProjectModal 
+        isOpen={showProjectModal}
+        onClose={() => setShowProjectModal(false)}
+      />
     </KanbanContext.Provider>
   );
 };

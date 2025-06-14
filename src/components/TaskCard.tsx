@@ -1,26 +1,30 @@
 
 import React from 'react';
 import { Draggable } from '@hello-pangea/dnd';
-import { Task, Tag, TaskTag } from '@/types/database';
+import { Task, Tag, TaskTag, Project } from '@/types/database';
 import { useKanban } from './KanbanBoard';
+import { ProjectBadge } from './projects/ProjectBadge';
 
 interface TaskCardProps {
   task: Task;
   index: number;
   tags: Tag[];
   taskTags: TaskTag[];
+  projects: Project[];
 }
 
 const TaskCard: React.FC<TaskCardProps> = ({ 
   task, 
   index, 
   tags = [],
-  taskTags = []
+  taskTags = [],
+  projects = []
 }) => {
   const { openTaskModal } = useKanban();
 
   const taskTagIds = (taskTags || []).filter(tt => tt.task_id === task.id).map(tt => tt.tag_id);
   const taskTagsData = (tags || []).filter(tag => taskTagIds.includes(tag.id));
+  const taskProject = projects.find(p => p.id === task.project_id);
 
   const getComplexityColor = (complexity: string) => {
     switch (complexity) {
@@ -47,7 +51,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
             snapshot.isDragging ? 'shadow-lg rotate-2 scale-105' : ''
           }`}
         >
-          {/* Header com ícones */}
+          {/* Header com ícones e projeto */}
           <div className="flex items-center justify-between mb-3">
             {/* Status Images */}
             {task.status_image_filenames && task.status_image_filenames.length > 0 ? (
@@ -70,6 +74,13 @@ const TaskCard: React.FC<TaskCardProps> = ({
               <span className="text-xs font-bold">{task.function_points || 0}</span>
             </div>
           </div>
+
+          {/* Project Badge */}
+          {taskProject && (
+            <div className="mb-3">
+              <ProjectBadge project={taskProject} size="sm" />
+            </div>
+          )}
 
           {/* Título */}
           <h3 className="text-gray-900 font-semibold text-base mb-2">

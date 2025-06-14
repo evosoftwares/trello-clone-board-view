@@ -1,8 +1,9 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { KanbanColumn, Task, TeamMember, Tag, TaskTag } from '@/types/database';
 
-export const useKanbanData = () => {
+export const useKanbanData = (selectedProjectId?: string | null) => {
   const [columns, setColumns] = useState<KanbanColumn[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
@@ -13,12 +14,16 @@ export const useKanbanData = () => {
 
   const fetchAllData = useCallback(async () => {
     try {
-      // Não recarregar tudo se não for o load inicial para evitar flicker
-      // setLoading(true); 
+      // Build tasks query with optional project filter
+      let tasksQuery = supabase.from('tasks').select('*').order('position');
       
+      if (selectedProjectId) {
+        tasksQuery = tasksQuery.eq('project_id', selectedProjectId);
+      }
+
       const [columnsRes, tasksRes, membersRes, tagsRes, taskTagsRes] = await Promise.all([
         supabase.from('kanban_columns').select('*').order('position'),
-        supabase.from('tasks').select('*').order('position'),
+        tasksQuery,
         supabase.from('team_members').select('*').order('name'),
         supabase.from('tags').select('*').order('name'),
         supabase.from('task_tags').select('*')
@@ -42,7 +47,7 @@ export const useKanbanData = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedProjectId]);
 
   useEffect(() => {
     fetchAllData();
@@ -51,16 +56,36 @@ export const useKanbanData = () => {
       .channel('kanban-realtime-changes')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tasks' }, (payload) => {
         console.log('Realtime: Task INSERT received', payload.new);
-        setTasks(currentTasks => {
-            if (currentTasks.some(t => t.id === payload.new.id)) return currentTasks;
-            return [...currentTasks, payload.new as Task];
-        });
+        const newTask = payload.new as Task;
+        
+        // Only add task if it matches current project filter
+        if (!selectedProjectId || newTask.project_id === selectedProjectId) {
+          setTasks(currentTasks => {
+            if (currentTasks.some(t => t.id === newTask.id)) return currentTasks;
+            return [...currentTasks, newTask];
+          });
+        }
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'tasks' }, (payload) => {
         console.log('Realtime: Task UPDATE received', payload.new);
-        setTasks(currentTasks => 
-            currentTasks.map(task => (task.id === payload.new.id ? payload.new as Task : task))
-        );
+        const updatedTask = payload.new as Task;
+        
+        setTasks(currentTasks => {
+          // Remove task if it no longer matches filter
+          if (selectedProjectId && updatedTask.project_id !== selectedProjectId) {
+            return currentTasks.filter(task => task.id !== updatedTask.id);
+          }
+          
+          // Update or add task if it matches filter
+          const taskExists = currentTasks.some(task => task.id === updatedTask.id);
+          if (taskExists) {
+            return currentTasks.map(task => (task.id === updatedTask.id ? updatedTask : task));
+          } else if (!selectedProjectId || updatedTask.project_id === selectedProjectId) {
+            return [...currentTasks, updatedTask];
+          }
+          
+          return currentTasks;
+        });
       })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'tasks' }, (payload) => {
         console.log('Realtime: Task DELETE received', payload.old);
@@ -102,23 +127,30 @@ export const useKanbanData = () => {
     }
   };
 
-  const createTask = async (columnId: string, title: string) => {
+  const createTask = async (columnId: string, title: string, projectId?: string | null) => {
     try {
       const maxPosition = Math.max(
         ...tasks.filter(t => t.column_id === columnId).map(t => t.position), 
         -1
       );
 
+      const taskData: any = {
+        title,
+        column_id: columnId,
+        position: maxPosition + 1,
+        function_points: 1,
+        complexity: 'medium',
+        status_image_filenames: ['tarefas.svg']
+      };
+
+      // Add project_id if provided
+      if (projectId) {
+        taskData.project_id = projectId;
+      }
+
       const { error } = await supabase
         .from('tasks')
-        .insert({
-          title,
-          column_id: columnId,
-          position: maxPosition + 1,
-          function_points: 1,
-          complexity: 'medium',
-          status_image_filenames: ['tarefas.svg']
-        });
+        .insert(taskData);
 
       if (error) throw error;
     } catch (err: any) {
