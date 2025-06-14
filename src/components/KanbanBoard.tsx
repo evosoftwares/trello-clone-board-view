@@ -35,6 +35,7 @@ const KanbanBoard = () => {
     createTask, 
     updateTask, 
     deleteTask,
+    fixAllPositions,
     refreshData
   } = useKanbanData(selectedProjectId);
   
@@ -107,6 +108,12 @@ const KanbanBoard = () => {
     // Find the task being moved
     const movedTask = tasks.find(task => task.id === draggableId);
     if (!movedTask) return;
+
+    console.log('[DRAG END] Moving task:', {
+      taskId: draggableId,
+      from: { columnId: sourceColumnId, index: source.index },
+      to: { columnId: destColumnId, index: destination.index }
+    });
 
     try {
       // Call moveTask with the correct destination index as position
@@ -207,7 +214,7 @@ const KanbanBoard = () => {
         />
       )}
 
-      {/* Refresh e erro sempre visíveis */}
+      {/* Refresh, error and fix positions buttons */}
       <div className="fixed top-3 right-3 z-50 flex gap-2">
         <button
           className="bg-blue-500 hover:bg-blue-600 text-white font-semibold text-sm py-2 px-4 rounded-full shadow transition"
@@ -215,6 +222,13 @@ const KanbanBoard = () => {
           aria-label="Atualizar dados do Kanban"
         >
           Atualizar Kanban
+        </button>
+        <button
+          className="bg-green-500 hover:bg-green-600 text-white font-semibold text-sm py-2 px-4 rounded-full shadow transition"
+          onClick={fixAllPositions}
+          aria-label="Corrigir posições das tarefas"
+        >
+          Corrigir Posições
         </button>
         {error && (
           <div className="bg-red-100 text-red-700 font-medium px-3 py-2 rounded shadow border border-red-300 flex items-center">

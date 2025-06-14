@@ -1,3 +1,4 @@
+
 import { useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Task } from '@/types/database';
@@ -9,35 +10,58 @@ interface UseKanbanMutationsProps {
 }
 
 export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutationsProps) => {
+  // Helper function to normalize positions in a column
+  const normalizeColumnPositions = useCallback(async (columnId: string) => {
+    try {
+      const { data: columnTasks, error: fetchError } = await supabase
+        .from('tasks')
+        .select('id, position')
+        .eq('column_id', columnId)
+        .order('position', { ascending: true });
+
+      if (fetchError) throw fetchError;
+
+      if (columnTasks && columnTasks.length > 0) {
+        const updates = columnTasks.map((task, index) => ({
+          id: task.id,
+          position: index
+        }));
+
+        for (const update of updates) {
+          const { error: updateError } = await supabase
+            .from('tasks')
+            .update({ position: update.position })
+            .eq('id', update.id);
+          
+          if (updateError) throw updateError;
+        }
+      }
+    } catch (err) {
+      console.error('Error normalizing column positions:', err);
+      throw err;
+    }
+  }, []);
+
   const moveTask = useCallback(async (taskId: string, newColumnId: string, newPosition: number) => {
     const originalTasks = tasks;
     
     try {
-      // Get all tasks in the destination column
-      const destinationTasks = tasks
-        .filter(task => task.column_id === newColumnId && task.id !== taskId)
-        .sort((a, b) => a.position - b.position);
-      
-      // Calculate new positions for all affected tasks
-      const updatedTasks = tasks.map(task => {
-        if (task.id === taskId) {
-          return { ...task, column_id: newColumnId, position: newPosition };
-        }
-        
-        // If task is in the destination column, adjust positions
-        if (task.column_id === newColumnId) {
-          if (newPosition <= task.position) {
-            return { ...task, position: task.position + 1 };
-          }
-        }
-        
-        return task;
-      });
-      
-      // Optimistic update
-      setTasks(updatedTasks);
+      // Find the task being moved
+      const movedTask = tasks.find(task => task.id === taskId);
+      if (!movedTask) return;
 
-      // Update the moved task
+      const isMovingToSameColumn = movedTask.column_id === newColumnId;
+      const sourceColumnId = movedTask.column_id;
+
+      console.log('[MOVE TASK] Moving task:', {
+        taskId,
+        from: sourceColumnId,
+        to: newColumnId,
+        newPosition,
+        sameColumn: isMovingToSameColumn
+      });
+
+      // Step 1: Update the moved task's column and position
       const { error: moveError } = await supabase
         .from('tasks')
         .update({ 
@@ -48,26 +72,15 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
 
       if (moveError) throw moveError;
 
-      // Update positions of other tasks in the destination column
-      const tasksToUpdate = destinationTasks
-        .filter(task => task.position >= newPosition)
-        .map(task => ({
-          id: task.id,
-          position: task.position + 1
-        }));
+      // Step 2: Normalize positions in the destination column
+      await normalizeColumnPositions(newColumnId);
 
-      if (tasksToUpdate.length > 0) {
-        for (const taskUpdate of tasksToUpdate) {
-          const { error: updateError } = await supabase
-            .from('tasks')
-            .update({ position: taskUpdate.position })
-            .eq('id', taskUpdate.id);
-          
-          if (updateError) throw updateError;
-        }
+      // Step 3: If moving between different columns, normalize source column too
+      if (!isMovingToSameColumn) {
+        await normalizeColumnPositions(sourceColumnId);
       }
 
-      // Fetch fresh data to ensure consistency
+      // Step 4: Fetch fresh data to ensure consistency
       const { data: freshTasks, error: fetchError } = await supabase
         .from('tasks')
         .select('*')
@@ -77,13 +90,15 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
       
       setTasks(freshTasks as Task[]);
 
+      console.log('[MOVE TASK] Task moved successfully');
+
     } catch (err: any) {
       console.error('Error moving task:', err);
       setError(err.message);
       // Revert on error
       setTasks(originalTasks);
     }
-  }, [tasks, setTasks, setError]);
+  }, [tasks, setTasks, setError, normalizeColumnPositions]);
 
   const createTask = useCallback(async (columnId: string, title: string, projectId?: string | null) => {
     try {
@@ -112,6 +127,8 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
         .insert(taskData);
 
       if (error) throw error;
+
+      console.log('[CREATE TASK] Task created successfully');
     } catch (err: any) {
       console.error('Error creating task:', err);
       setError(err.message);
@@ -168,10 +185,45 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
     }
   }, [tasks, setTasks, setError]);
 
+  // Utility function to fix position inconsistencies
+  const fixAllPositions = useCallback(async () => {
+    try {
+      console.log('[FIX POSITIONS] Starting position normalization...');
+      
+      // Get all columns
+      const { data: columns, error: columnsError } = await supabase
+        .from('kanban_columns')
+        .select('id');
+
+      if (columnsError) throw columnsError;
+
+      // Normalize positions for each column
+      for (const column of columns || []) {
+        await normalizeColumnPositions(column.id);
+      }
+
+      // Fetch fresh data
+      const { data: freshTasks, error: fetchError } = await supabase
+        .from('tasks')
+        .select('*')
+        .order('position');
+
+      if (fetchError) throw fetchError;
+      
+      setTasks(freshTasks as Task[]);
+      
+      console.log('[FIX POSITIONS] Position normalization completed');
+    } catch (err: any) {
+      console.error('Error fixing positions:', err);
+      setError(err.message);
+    }
+  }, [normalizeColumnPositions, setTasks, setError]);
+
   return {
     moveTask,
     createTask,
     updateTask,
-    deleteTask
+    deleteTask,
+    fixAllPositions
   };
 };

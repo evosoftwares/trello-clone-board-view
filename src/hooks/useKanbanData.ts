@@ -21,16 +21,14 @@ export const useKanbanData = (selectedProjectId?: string | null) => {
     setTaskTags
   } = useKanbanDataFetch();
 
-  // error state control simplificada
   const [internalError, setInternalError] = useState<string | null>(null);
 
-  const { moveTask, createTask, updateTask, deleteTask } = useKanbanMutations({
+  const { moveTask, createTask, updateTask, deleteTask, fixAllPositions } = useKanbanMutations({
     tasks,
     setTasks,
     setError: setInternalError
   });
 
-  // Fetch inicial e após refresh/manual
   const refreshData = useCallback(() => {
     fetchAllData(selectedProjectId);
   }, [selectedProjectId, fetchAllData]);
@@ -51,6 +49,7 @@ export const useKanbanData = (selectedProjectId?: string | null) => {
     createTask,
     updateTask,
     deleteTask,
+    fixAllPositions,
     refreshData
   };
 };

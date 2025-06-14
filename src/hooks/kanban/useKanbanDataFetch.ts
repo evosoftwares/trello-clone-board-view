@@ -3,9 +3,7 @@ import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { KanbanColumn, Task, TeamMember, Tag, TaskTag } from '@/types/database';
 
-// DEBUG: Ensure no supabase.channel calls remain
-// (If you see this log on load, there's a bug)
-console.debug('[KANBAN DATA FETCH] Loaded - no Realtime subscriptions here.');
+console.debug('[KANBAN DATA FETCH] Loaded - optimized for position handling.');
 
 export const useKanbanDataFetch = () => {
   const [columns, setColumns] = useState<KanbanColumn[]>([]);
@@ -23,8 +21,13 @@ export const useKanbanDataFetch = () => {
       
       console.log("[KANBAN FETCH] Fetching data for project:", selectedProjectId);
 
-      // Build tasks query with optional project filter
-      let tasksQuery = supabase.from('tasks').select('*').order('position');
+      // Build tasks query with proper ordering
+      let tasksQuery = supabase
+        .from('tasks')
+        .select('*')
+        .order('column_id')
+        .order('position', { ascending: true })
+        .order('created_at', { ascending: true });
       
       if (selectedProjectId) {
         tasksQuery = tasksQuery.eq('project_id', selectedProjectId);
@@ -44,8 +47,19 @@ export const useKanbanDataFetch = () => {
       if (tagsRes.error) throw tagsRes.error;
       if (taskTagsRes.error) throw taskTagsRes.error;
 
+      const fetchedTasks = (tasksRes.data || []) as Task[];
+      
+      // Log task positions for debugging
+      console.log("[KANBAN FETCH] Tasks by column:", 
+        fetchedTasks.reduce((acc, task) => {
+          if (!acc[task.column_id]) acc[task.column_id] = [];
+          acc[task.column_id].push({ id: task.id, title: task.title, position: task.position });
+          return acc;
+        }, {} as Record<string, any[]>)
+      );
+
       setColumns((columnsRes.data || []) as KanbanColumn[]);
-      setTasks((tasksRes.data || []) as Task[]);
+      setTasks(fetchedTasks);
       setTeamMembers((membersRes.data || []) as TeamMember[]);
       setTags((tagsRes.data || []) as Tag[]);
       setTaskTags((taskTagsRes.data || []) as TaskTag[]);

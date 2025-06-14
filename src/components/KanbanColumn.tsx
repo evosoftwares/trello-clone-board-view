@@ -27,12 +27,21 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
   const [isAdding, setIsAdding] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState('');
 
-  // Sort tasks by position to ensure correct order
+  // Sort tasks by position with fallback to created_at for consistency
   const columnTasks = tasks
     .filter(task => task.column_id === column.id)
-    .sort((a, b) => a.position - b.position);
+    .sort((a, b) => {
+      // Primary sort: position
+      if (a.position !== b.position) {
+        return a.position - b.position;
+      }
+      // Fallback sort: created_at for tasks with same position
+      return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+    });
   
   const totalFunctionPoints = columnTasks.reduce((sum, task) => sum + (task.function_points || 0), 0);
+
+  console.log(`[COLUMN ${column.title}] Tasks:`, columnTasks.map(t => ({ id: t.id, title: t.title, position: t.position })));
 
   const handleAddTask = () => {
     if (newTaskTitle.trim()) {
@@ -82,7 +91,7 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
               snapshot.isDraggingOver ? 'bg-blue-50 rounded-xl' : ''
             }`}
           >
-            {/* Tasks - now properly sorted by position */}
+            {/* Tasks - properly sorted by position with fallback */}
             {columnTasks.map((task, index) => (
               <TaskCard 
                 key={task.id}
