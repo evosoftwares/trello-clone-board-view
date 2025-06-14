@@ -109,6 +109,7 @@ const KanbanBoard = () => {
     if (!movedTask) return;
 
     try {
+      // Call moveTask with the correct destination index as position
       await moveTask(draggableId, destColumnId, destination.index);
 
       // Trigger confetti if moved to "Concluído" column

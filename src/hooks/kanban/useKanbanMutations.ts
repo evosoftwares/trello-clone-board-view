@@ -1,4 +1,3 @@
-
 import { useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Task } from '@/types/database';
@@ -13,14 +12,33 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
   const moveTask = useCallback(async (taskId: string, newColumnId: string, newPosition: number) => {
     const originalTasks = tasks;
     
-    // Optimistic update
-    const updatedTasks = tasks.map(task => 
-      task.id === taskId ? { ...task, column_id: newColumnId, position: newPosition } : task
-    );
-    setTasks(updatedTasks);
-
     try {
-      const { error } = await supabase
+      // Get all tasks in the destination column
+      const destinationTasks = tasks
+        .filter(task => task.column_id === newColumnId && task.id !== taskId)
+        .sort((a, b) => a.position - b.position);
+      
+      // Calculate new positions for all affected tasks
+      const updatedTasks = tasks.map(task => {
+        if (task.id === taskId) {
+          return { ...task, column_id: newColumnId, position: newPosition };
+        }
+        
+        // If task is in the destination column, adjust positions
+        if (task.column_id === newColumnId) {
+          if (newPosition <= task.position) {
+            return { ...task, position: task.position + 1 };
+          }
+        }
+        
+        return task;
+      });
+      
+      // Optimistic update
+      setTasks(updatedTasks);
+
+      // Update the moved task
+      const { error: moveError } = await supabase
         .from('tasks')
         .update({ 
           column_id: newColumnId, 
@@ -28,7 +46,37 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
         })
         .eq('id', taskId);
 
-      if (error) throw error;
+      if (moveError) throw moveError;
+
+      // Update positions of other tasks in the destination column
+      const tasksToUpdate = destinationTasks
+        .filter(task => task.position >= newPosition)
+        .map(task => ({
+          id: task.id,
+          position: task.position + 1
+        }));
+
+      if (tasksToUpdate.length > 0) {
+        for (const taskUpdate of tasksToUpdate) {
+          const { error: updateError } = await supabase
+            .from('tasks')
+            .update({ position: taskUpdate.position })
+            .eq('id', taskUpdate.id);
+          
+          if (updateError) throw updateError;
+        }
+      }
+
+      // Fetch fresh data to ensure consistency
+      const { data: freshTasks, error: fetchError } = await supabase
+        .from('tasks')
+        .select('*')
+        .order('position');
+
+      if (fetchError) throw fetchError;
+      
+      setTasks(freshTasks as Task[]);
+
     } catch (err: any) {
       console.error('Error moving task:', err);
       setError(err.message);
@@ -39,6 +87,7 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
 
   const createTask = useCallback(async (columnId: string, title: string, projectId?: string | null) => {
     try {
+      // Find the highest position in the target column
       const maxPosition = Math.max(
         ...tasks.filter(t => t.column_id === columnId).map(t => t.position), 
         -1
