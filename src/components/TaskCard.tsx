@@ -41,9 +41,17 @@ const TaskCard: React.FC<TaskCardProps> = ({
           ref={provided.innerRef}
           {...provided.draggableProps}
           {...provided.dragHandleProps}
-          className={`bg-white rounded-2xl p-4 shadow-sm border border-gray-100 cursor-grab active:cursor-grabbing hover:shadow-md transition-all duration-200 ${
-            snapshot.isDragging ? 'shadow-lg rotate-2 scale-105' : ''
+          className={`bg-white rounded-2xl p-4 shadow-sm border border-gray-100 cursor-grab active:cursor-grabbing transition-all duration-300 ease-out ${
+            snapshot.isDragging 
+              ? 'shadow-2xl rotate-3 scale-105 z-50 ring-2 ring-blue-200/50 bg-blue-50/30' 
+              : 'hover:shadow-md hover:scale-[1.02] hover:-translate-y-1'
           }`}
+          style={{
+            ...provided.draggableProps.style,
+            transition: snapshot.isDragging 
+              ? 'box-shadow 0.3s ease, transform 0.2s ease' 
+              : 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+          }}
         >
           {/* Header com ícones */}
           <div className="flex items-center justify-between mb-3">
@@ -55,7 +63,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
                     key={idx}
                     src={`/imagens/${imageName}`}
                     alt={`Status: ${imageName}`}
-                    className="w-5 h-5 rounded object-contain"
+                    className="w-5 h-5 rounded object-contain transition-transform duration-200 hover:scale-110"
                   />
                 ))}
               </div>
@@ -64,18 +72,18 @@ const TaskCard: React.FC<TaskCardProps> = ({
             )}
 
             {/* Function Points Badge */}
-            <div className={`w-6 h-6 rounded-full flex items-center justify-center ml-auto ${getComplexityColor(task.complexity || 'medium')}`}>
+            <div className={`w-6 h-6 rounded-full flex items-center justify-center ml-auto transition-all duration-200 hover:scale-110 ${getComplexityColor(task.complexity || 'medium')}`}>
               <span className="text-xs font-bold">{task.function_points || 0}</span>
             </div>
           </div>
 
           {/* Título */}
-          <h3 className="text-gray-900 font-semibold text-base mb-2">
+          <h3 className="text-gray-900 font-semibold text-base mb-2 transition-colors duration-200">
             {task.title}
           </h3>
 
           {/* Descrição */}
-          <p className="text-gray-500 text-sm mb-4 truncate">
+          <p className="text-gray-500 text-sm mb-4 truncate transition-colors duration-200">
             {task.description || 'Sem descrição'}
           </p>
 
@@ -85,10 +93,12 @@ const TaskCard: React.FC<TaskCardProps> = ({
               taskTagsData.map((tag, tagIndex) => (
                 <span 
                   key={tag.id} 
-                  className={`px-3 py-1 rounded-full text-xs font-medium`}
+                  className={`px-3 py-1 rounded-full text-xs font-medium transition-all duration-200 hover:scale-105 hover:shadow-sm`}
                   style={{ 
                     backgroundColor: tag.color + '20', 
-                    color: tag.color 
+                    color: tag.color,
+                    borderColor: tag.color + '40',
+                    border: '1px solid'
                   }}
                 >
                   {tag.name}
@@ -99,7 +109,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
 
           {/* Assignee info */}
           {task.assignee && (
-            <div className="mt-3 pt-3 border-t border-gray-100">
+            <div className="mt-3 pt-3 border-t border-gray-100 transition-colors duration-200">
               <span className="text-xs text-gray-500">Responsável: {task.assignee}</span>
             </div>
           )}
