@@ -1,13 +1,8 @@
 
 import KanbanBoard from '@/components/KanbanBoard';
-import { ProjectProvider } from '@/contexts/ProjectContext';
 
 const Index = () => {
-  return (
-    <ProjectProvider>
-      <KanbanBoard />
-    </ProjectProvider>
-  );
+  return <KanbanBoard />;
 };
 
 export default Index;

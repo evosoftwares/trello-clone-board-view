@@ -12,6 +12,7 @@ interface KanbanColumnProps {
   taskTags: TaskTag[];
   projects: Project[];
   onAddTask: (columnId: string, title: string) => void;
+  onTaskClick: (task: Task) => void;
 }
 
 const KanbanColumn: React.FC<KanbanColumnProps> = ({ 
@@ -20,7 +21,8 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
   tags, 
   taskTags, 
   projects,
-  onAddTask 
+  onAddTask,
+  onTaskClick
 }) => {
   const [isAdding, setIsAdding] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState('');
@@ -85,6 +87,7 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
                 tags={tags}
                 taskTags={taskTags}
                 projects={projects}
+                onTaskClick={onTaskClick}
               />
             ))}
             {provided.placeholder}

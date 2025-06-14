@@ -2,7 +2,6 @@
 import React from 'react';
 import { Draggable } from '@hello-pangea/dnd';
 import { Task, Tag, TaskTag, Project } from '@/types/database';
-import { useKanban } from './KanbanBoard';
 import { ProjectBadge } from './projects/ProjectBadge';
 
 interface TaskCardProps {
@@ -11,6 +10,7 @@ interface TaskCardProps {
   tags: Tag[];
   taskTags: TaskTag[];
   projects: Project[];
+  onTaskClick: (task: Task) => void;
 }
 
 const TaskCard: React.FC<TaskCardProps> = ({ 
@@ -18,10 +18,9 @@ const TaskCard: React.FC<TaskCardProps> = ({
   index, 
   tags = [],
   taskTags = [],
-  projects = []
+  projects = [],
+  onTaskClick
 }) => {
-  const { openTaskModal } = useKanban();
-
   const taskTagIds = (taskTags || []).filter(tt => tt.task_id === task.id).map(tt => tt.tag_id);
   const taskTagsData = (tags || []).filter(tag => taskTagIds.includes(tag.id));
   const taskProject = projects.find(p => p.id === task.project_id);
@@ -46,7 +45,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
           ref={provided.innerRef}
           {...provided.draggableProps}
           {...provided.dragHandleProps}
-          onClick={() => openTaskModal(task)}
+          onClick={() => onTaskClick(task)}
           className={`bg-white rounded-2xl p-4 shadow-sm border border-gray-100 cursor-pointer active:cursor-grabbing hover:shadow-md transition-all duration-200 ${
             snapshot.isDragging ? 'shadow-lg rotate-2 scale-105' : ''
           }`}
@@ -56,7 +55,10 @@ const TaskCard: React.FC<TaskCardProps> = ({
             {/* Status Images */}
             {task.status_image_filenames && task.status_image_filenames.length > 0 ? (
               <div className="flex flex-wrap gap-2 items-center">
-                {task.status_image_filenames.map((imageName, idx) => (
+                {task.status_image_filenames.map((imageName,
+
+
+) => (
                   <img
                     key={idx}
                     src={`/imagens/${imageName}`}
@@ -95,7 +97,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
           {/* Tags */}
           <div className="flex flex-wrap gap-2">
             {taskTagsData.length > 0 ? (
-              taskTagsData.map((tag, tagIndex) => (
+              taskTagsData.map((tag) => (
                 <span 
                   key={tag.id} 
                   className={`px-3 py-1 rounded-full text-xs font-medium`}
