@@ -1,8 +1,21 @@
-
 export interface KanbanColumn {
   id: string;
   title: string;
   position: number;
+  color: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  description?: string;
+  client_name?: string;
+  status: 'active' | 'paused' | 'completed' | 'cancelled';
+  start_date?: string;
+  deadline?: string;
+  budget?: number;
   color: string;
   created_at: string;
   updated_at: string;
@@ -19,6 +32,7 @@ export interface Task {
   complexity: 'low' | 'medium' | 'high';
   estimated_hours?: number;
   status_image_filenames: string[];
+  project_id?: string | null;
   created_at: string;
   updated_at: string;
 }

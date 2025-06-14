@@ -80,6 +80,48 @@ export type Database = {
         }
         Relationships: []
       }
+      projects: {
+        Row: {
+          budget: number | null
+          client_name: string | null
+          color: string | null
+          created_at: string | null
+          deadline: string | null
+          description: string | null
+          id: string
+          name: string
+          start_date: string | null
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          budget?: number | null
+          client_name?: string | null
+          color?: string | null
+          created_at?: string | null
+          deadline?: string | null
+          description?: string | null
+          id?: string
+          name: string
+          start_date?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          budget?: number | null
+          client_name?: string | null
+          color?: string | null
+          created_at?: string | null
+          deadline?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+          start_date?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       tags: {
         Row: {
           color: string | null
@@ -145,6 +187,7 @@ export type Database = {
           function_points: number | null
           id: string
           position: number
+          project_id: string | null
           status_image_filenames: string[] | null
           title: string
           updated_at: string | null
@@ -159,6 +202,7 @@ export type Database = {
           function_points?: number | null
           id?: string
           position?: number
+          project_id?: string | null
           status_image_filenames?: string[] | null
           title: string
           updated_at?: string | null
@@ -173,6 +217,7 @@ export type Database = {
           function_points?: number | null
           id?: string
           position?: number
+          project_id?: string | null
           status_image_filenames?: string[] | null
           title?: string
           updated_at?: string | null
@@ -183,6 +228,13 @@ export type Database = {
             columns: ["column_id"]
             isOneToOne: false
             referencedRelation: "kanban_columns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
         ]
