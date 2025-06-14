@@ -1,28 +1,27 @@
 
 import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
-import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
+import { DragDropContext } from '@hello-pangea/dnd';
 import TeamMember from './TeamMember';
 import KanbanColumn from './KanbanColumn';
 import Confetti from 'react-confetti';
-import { User, Plus } from 'lucide-react';
-
-interface Task {
-  id: string;
-  title: string;
-  description?: string;
-  tags?: string[];
-  assignee?: string;
-  statusImageFilenames?: string[];
-}
-
-interface Column {
-  id: string;
-  title: string;
-  tasks: Task[];
-}
+import { useKanbanData } from '@/hooks/useKanbanData';
+import { useToast } from '@/hooks/use-toast';
 
 const KanbanBoard = () => {
+  const { 
+    columns, 
+    tasks, 
+    teamMembers, 
+    tags, 
+    taskTags, 
+    loading, 
+    error, 
+    moveTask, 
+    createTask 
+  } = useKanbanData();
+  
+  const { toast } = useToast();
   const [runConfetti, setRunConfetti] = useState(false);
   const [windowSize, setWindowSize] = useState({
     width: typeof window !== 'undefined' ? window.innerWidth : 0,
@@ -40,121 +39,78 @@ const KanbanBoard = () => {
     };
 
     window.addEventListener('resize', handleResize);
-    handleResize(); // Define o tamanho inicial
+    handleResize();
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const [teamMembers] = useState([
-    { id: '1', name: 'Marcelo', taskCount: 0, avatar: '👨‍💻' },
-    { id: '2', name: 'Babi', taskCount: 0, avatar: '👩‍💻' },
-    { id: '3', name: 'Victor', taskCount: 0, avatar: '👨‍💼' },
-    { id: '4', name: 'Gabriel', taskCount: 0, avatar: '👨‍🎨' },
-  ]);
+  useEffect(() => {
+    if (error) {
+      toast({
+        title: "Erro",
+        description: error,
+        variant: "destructive"
+      });
+    }
+  }, [error, toast]);
 
-  const [columns, setColumns] = useState<Column[]>([
-    {
-      id: 'backlog',
-      title: 'Backlog',
-      tasks: [
-        {
-          id: 'task-1',
-          title: 'Configurar ambiente de desenvolvimento',
-          description: 'Instalar todas as dependências e configurar o Docker.',
-          tags: ['setup', 'devops', 'config'],
-          assignee: 'Marcelo',
-          statusImageFilenames: ['bug.svg', 'historia.svg'], // Usando nomes corretos
-        },
-        {
-          id: 'task-2',
-          title: 'Criar layout inicial da UI',
-          description: 'Desenvolver os componentes básicos da interface do usuário.',
-          tags: ['ui', 'frontend'],
-          statusImageFilenames: ['subtarefa.svg'], // Usando nome correto
-        },
-      ],
-    },
-    {
-      id: 'trabalhando',
-      title: 'Trabalhando',
-      tasks: [
-        {
-          id: 'task-3',
-          title: 'Implementar autenticação de usuário',
-          description: 'Usar OAuth2 com Google e Github.',
-          tags: ['auth', 'backend', 'security'],
-          assignee: 'Babi',
-          statusImageFilenames: ['epic.svg', 'tarefas.svg'], // Usando nomes corretos
-        },
-      ],
-    },
-    { id: 'revisao', title: 'Revisão Devs', tasks: [] },
-    {
-      id: 'concluido',
-      title: 'Concluído',
-      tasks: [] },
-  ]);
-
-  const onDragEnd = (result: any) => {
+  const onDragEnd = async (result: any) => {
     const { destination, source, draggableId } = result;
 
     if (!destination) return;
     if (destination.droppableId === source.droppableId && destination.index === source.index) return;
 
-    const start = columns.find(col => col.id === source.droppableId);
-    const finish = columns.find(col => col.id === destination.droppableId);
+    const sourceColumnId = source.droppableId;
+    const destColumnId = destination.droppableId;
 
-    if (!start || !finish) return;
+    // Find the task being moved
+    const movedTask = tasks.find(task => task.id === draggableId);
+    if (!movedTask) return;
 
-    if (start === finish) {
-      const newTasks = Array.from(start.tasks);
-      const [removed] = newTasks.splice(source.index, 1);
-      newTasks.splice(destination.index, 0, removed);
+    try {
+      await moveTask(draggableId, destColumnId, destination.index);
 
-      const newColumn = { ...start, tasks: newTasks };
-      const newColumns = columns.map(col => col.id === newColumn.id ? newColumn : col);
-      setColumns(newColumns);
-      return;
-    }
-
-    const startTasks = Array.from(start.tasks);
-    const [removed] = startTasks.splice(source.index, 1);
-    const newStart = { ...start, tasks: startTasks };
-
-    const finishTasks = Array.from(finish.tasks);
-    finishTasks.splice(destination.index, 0, removed);
-    const newFinish = { ...finish, tasks: finishTasks };
-
-    const newColumns = columns.map(col => {
-      if (col.id === newStart.id) return newStart;
-      if (col.id === newFinish.id) return newFinish;
-      return col;
-    });
-
-    setColumns(newColumns);
-
-    // Disparar confetes se a tarefa for movida para a coluna "Concluído"
-    // e não estava antes na coluna "Concluído"
-    if (finish.id === 'concluido' && source.droppableId !== destination.droppableId) {
-      setRunConfetti(true);
+      // Trigger confetti if moved to "Concluído" column
+      const completedColumn = columns.find(col => col.title === 'Concluído');
+      if (completedColumn && destColumnId === completedColumn.id && sourceColumnId !== destColumnId) {
+        setRunConfetti(true);
+        toast({
+          title: "Parabéns! 🎉",
+          description: `Tarefa "${movedTask.title}" foi concluída!`,
+        });
+      }
+    } catch (err) {
+      console.error('Error in drag end:', err);
     }
   };
 
-  const addTask = (columnId: string, title: string) => {
-    const newTask: Task = {
-      id: `task-${Date.now()}`,
-      title,
-      description: 'Adicione uma descrição para esta tarefa...',
-      tags: ['nova tarefa'],
-      statusImageFilenames: ['tarefas.svg'], // Imagem padrão correta para novas tarefas
-    };
-    const newColumns = columns.map(col => 
-      col.id === columnId 
-        ? { ...col, tasks: [...col.tasks, newTask] }
-        : col
+  const handleAddTask = async (columnId: string, title: string) => {
+    try {
+      await createTask(columnId, title);
+      toast({
+        title: "Sucesso",
+        description: "Nova tarefa criada!",
+      });
+    } catch (err) {
+      console.error('Error adding task:', err);
+    }
+  };
+
+  // Calculate task counts for team members
+  const teamMembersWithTaskCount = teamMembers.map(member => ({
+    ...member,
+    taskCount: tasks.filter(task => task.assignee === member.name).length
+  }));
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-6 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-gray-600">Carregando dados do Kanban...</p>
+        </div>
+      </div>
     );
-
-    setColumns(newColumns);
-  };
+  }
 
   return (
     <>
@@ -193,7 +149,7 @@ const KanbanBoard = () => {
           <div className="bg-white rounded-2xl shadow-lg p-6 mb-8">
             <h2 className="text-xl font-semibold text-gray-800 mb-6">Equipe</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {teamMembers.map((member) => (
+              {teamMembersWithTaskCount.map((member) => (
                 <TeamMember key={member.id} member={member} />
               ))}
             </div>
@@ -207,7 +163,10 @@ const KanbanBoard = () => {
                   <KanbanColumn 
                     key={column.id} 
                     column={column} 
-                    onAddTask={addTask}
+                    tasks={tasks}
+                    tags={tags}
+                    taskTags={taskTags}
+                    onAddTask={handleAddTask}
                   />
                 ))}
               </div>
