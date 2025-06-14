@@ -19,36 +19,36 @@ export const useKanbanRealtime = ({
   onDataChange
 }: UseKanbanRealtimeProps) => {
   const { subscribeToProject, unsubscribeFromProject, isConnected } = useRealtimeContext();
-  
-  // Use refs to store callbacks to prevent re-subscriptions
-  const callbacksRef = useRef({
-    onTaskInsert,
-    onTaskUpdate,
-    onTaskDelete,
-    onDataChange
-  });
+  const isInitialized = useRef(false);
+  const currentProjectId = useRef<string | null>(null);
 
-  // Update callbacks ref when they change
   useEffect(() => {
-    callbacksRef.current = {
-      onTaskInsert,
-      onTaskUpdate,
-      onTaskDelete,
-      onDataChange
-    };
-  });
+    // Only subscribe if project changed or first time
+    if (currentProjectId.current !== selectedProjectId) {
+      console.log('[KANBAN REALTIME] Project changed from', currentProjectId.current, 'to', selectedProjectId);
+      
+      currentProjectId.current = selectedProjectId;
+      
+      subscribeToProject(selectedProjectId, {
+        onTaskInsert,
+        onTaskUpdate,
+        onTaskDelete,
+        onDataChange
+      });
+      
+      isInitialized.current = true;
+    }
+  }, [selectedProjectId, subscribeToProject, onTaskInsert, onTaskUpdate, onTaskDelete, onDataChange]);
 
-  // Only subscribe when project ID changes
   useEffect(() => {
-    console.log('[KANBAN REALTIME] Project changed to:', selectedProjectId);
-    
-    subscribeToProject(selectedProjectId, callbacksRef.current);
-    
-    // Don't unsubscribe on unmount, let the context manage it
     return () => {
-      console.log('[KANBAN REALTIME] Effect cleanup');
+      console.log('[KANBAN REALTIME] Hook cleanup');
+      if (isInitialized.current) {
+        unsubscribeFromProject();
+        isInitialized.current = false;
+      }
     };
-  }, [selectedProjectId, subscribeToProject]);
+  }, [unsubscribeFromProject]);
 
   return {
     isSubscribed: isConnected

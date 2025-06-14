@@ -37,31 +37,26 @@ export const RealtimeProvider: React.FC<RealtimeProviderProps> = ({ children }) 
   const channelRef = useRef<RealtimeChannel | null>(null);
   const callbacksRef = useRef<any>(null);
   const currentProjectRef = useRef<string | null>(null);
-  const isSubscribingRef = useRef(false);
 
-  const unsubscribeFromProject = useCallback(async () => {
+  const unsubscribeFromProject = useCallback(() => {
+    console.log('[REALTIME] Unsubscribing from current channel');
+    
     if (channelRef.current) {
-      const channel = channelRef.current;
-      console.log('[REALTIME MANAGER] Cleaning up channel', channel.topic);
-      
       try {
-        // Only unsubscribe if not already unsubscribed
-        if (channel.state !== 'closed') {
-          await supabase.removeChannel(channel);
-        }
+        supabase.removeChannel(channelRef.current);
+        console.log('[REALTIME] Channel removed successfully');
       } catch (error) {
-        console.error('[REALTIME MANAGER] Error during cleanup:', error);
+        console.error('[REALTIME] Error removing channel:', error);
       }
-      
       channelRef.current = null;
-      setIsConnected(false);
-      currentProjectRef.current = null;
-      isSubscribingRef.current = false;
-      console.log('[REALTIME MANAGER] Cleanup completed');
     }
+    
+    setIsConnected(false);
+    currentProjectRef.current = null;
+    callbacksRef.current = null;
   }, []);
 
-  const subscribeToProject = useCallback(async (
+  const subscribeToProject = useCallback((
     projectId: string | null,
     callbacks: {
       onTaskInsert: (task: Task) => void;
@@ -70,94 +65,67 @@ export const RealtimeProvider: React.FC<RealtimeProviderProps> = ({ children }) 
       onDataChange: () => void;
     }
   ) => {
-    // Update callbacks immediately
+    // Always clean up first
+    unsubscribeFromProject();
+    
+    // Update refs
     callbacksRef.current = callbacks;
+    currentProjectRef.current = projectId;
     
-    // If we're already subscribed to this project, just update callbacks and return
-    if (currentProjectRef.current === projectId && channelRef.current && isConnected) {
-      console.log(`[REALTIME MANAGER] Already connected to project ${projectId}, updating callbacks only`);
-      return;
-    }
-
-    // Prevent concurrent subscriptions
-    if (isSubscribingRef.current) {
-      console.log('[REALTIME MANAGER] Subscription in progress, skipping');
-      return;
-    }
-
-    isSubscribingRef.current = true;
     const channelName = `kanban-project-${projectId || 'global'}`;
-    
-    console.log(`[REALTIME MANAGER] Subscribing to project: ${projectId}`);
+    console.log(`[REALTIME] Creating new subscription for: ${channelName}`);
 
-    // Clean up existing subscription
-    await unsubscribeFromProject();
-    
     try {
-      currentProjectRef.current = projectId;
-      
-      const newChannel = supabase.channel(channelName, {
-        config: { broadcast: { ack: false } },
-      });
-
+      const newChannel = supabase.channel(channelName);
       channelRef.current = newChannel;
 
       newChannel
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tasks' }, (payload) => {
-          console.log('[REALTIME MANAGER] Task INSERT:', payload.new);
+          console.log('[REALTIME] Task INSERT:', payload.new);
           const newTask = payload.new as Task;
           if (!currentProjectRef.current || newTask.project_id === currentProjectRef.current) {
             callbacksRef.current?.onTaskInsert(newTask);
           }
         })
         .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'tasks' }, (payload) => {
-          console.log('[REALTIME MANAGER] Task UPDATE:', payload.new);
+          console.log('[REALTIME] Task UPDATE:', payload.new);
           callbacksRef.current?.onTaskUpdate(payload.new as Task);
         })
         .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'tasks' }, (payload) => {
-          console.log('[REALTIME MANAGER] Task DELETE:', payload.old);
+          console.log('[REALTIME] Task DELETE:', payload.old);
           callbacksRef.current?.onTaskDelete((payload.old as any).id);
         })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'kanban_columns' }, () => {
-          console.log('[REALTIME MANAGER] Columns changed');
+          console.log('[REALTIME] Columns changed');
           callbacksRef.current?.onDataChange();
         })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'team_members' }, () => {
-          console.log('[REALTIME MANAGER] Team members changed');
+          console.log('[REALTIME] Team members changed');
           callbacksRef.current?.onDataChange();
-        });
-      
-      newChannel.subscribe((status, err) => {
-        console.log(`[REALTIME MANAGER] Channel ${channelName} status: ${status}`);
-        
-        if (status === 'SUBSCRIBED') {
-          setIsConnected(true);
-          isSubscribingRef.current = false;
-          console.log(`[REALTIME MANAGER] Successfully subscribed to ${channelName}`);
-        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-          console.error('[REALTIME MANAGER] Channel subscription failed:', err);
-          setIsConnected(false);
-          isSubscribingRef.current = false;
+        })
+        .subscribe((status) => {
+          console.log(`[REALTIME] Channel ${channelName} status:`, status);
           
-          // Only cleanup if this is still our current channel
-          if (channelRef.current === newChannel) {
-            unsubscribeFromProject();
+          if (status === 'SUBSCRIBED') {
+            setIsConnected(true);
+            console.log(`[REALTIME] Successfully subscribed to ${channelName}`);
+          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+            console.error('[REALTIME] Channel subscription failed');
+            setIsConnected(false);
           }
-        }
-      });
+        });
 
     } catch (error) {
-      console.error('[REALTIME MANAGER] Error during subscription:', error);
-      isSubscribingRef.current = false;
+      console.error('[REALTIME] Error during subscription:', error);
       setIsConnected(false);
     }
-  }, [unsubscribeFromProject, isConnected]);
+  }, [unsubscribeFromProject]);
 
   useEffect(() => {
     return () => {
-      console.log("[REALTIME MANAGER] Provider unmounting, cleaning up");
+      console.log("[REALTIME] Provider cleanup");
       unsubscribeFromProject();
-    }
+    };
   }, [unsubscribeFromProject]);
 
   return (
