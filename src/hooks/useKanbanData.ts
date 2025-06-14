@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { KanbanColumn, Task, TeamMember, Tag, TaskTag } from '@/types/database';
@@ -11,6 +12,7 @@ export const useKanbanData = (selectedProjectId?: string | null) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const channelRef = useRef<any>(null);
+  const isSubscribedRef = useRef(false);
 
   const fetchAllData = useCallback(async () => {
     try {
@@ -54,15 +56,22 @@ export const useKanbanData = (selectedProjectId?: string | null) => {
   const fetchAllDataRef = useRef(fetchAllData);
   fetchAllDataRef.current = fetchAllData;
 
-  // Single effect to handle both data fetching and channel setup
+  // Effect for data fetching and channel setup
   useEffect(() => {
     console.log("[KANBAN DATA] Effect triggered, selectedProjectId:", selectedProjectId);
     
+    // Prevent multiple subscriptions
+    if (isSubscribedRef.current) {
+      console.log("[KANBAN DATA] Already subscribed, skipping");
+      return;
+    }
+
     // Clean up existing channel first
     if (channelRef.current) {
       console.log("[KANBAN DATA] Removing existing channel");
       supabase.removeChannel(channelRef.current);
       channelRef.current = null;
+      isSubscribedRef.current = false;
     }
 
     // Fetch initial data
@@ -119,11 +128,16 @@ export const useKanbanData = (selectedProjectId?: string | null) => {
         fetchAllDataRef.current();
       });
 
-    // Store reference and subscribe
+    // Store reference and subscribe only once
     channelRef.current = channel;
     
     channel.subscribe((status: string) => {
       console.log("[KANBAN DATA] Channel status:", status);
+      if (status === 'SUBSCRIBED') {
+        isSubscribedRef.current = true;
+      } else if (status === 'CLOSED') {
+        isSubscribedRef.current = false;
+      }
     });
 
     // Cleanup function
@@ -133,6 +147,7 @@ export const useKanbanData = (selectedProjectId?: string | null) => {
         supabase.removeChannel(channelRef.current);
         channelRef.current = null;
       }
+      isSubscribedRef.current = false;
     };
   }, [selectedProjectId]); // Only depend on selectedProjectId
 
