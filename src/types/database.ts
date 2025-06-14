@@ -1,3 +1,4 @@
+
 export interface KanbanColumn {
   id: string;
   title: string;
@@ -70,5 +71,17 @@ export interface FunctionPointsHistory {
   new_complexity?: string;
   changed_by?: string;
   reason?: string;
+  created_at: string;
+}
+
+export interface ActivityLog {
+  id: string;
+  entity_type: 'task' | 'project' | 'team_member' | 'column' | 'tag';
+  entity_id: string;
+  action_type: 'create' | 'update' | 'delete' | 'move';
+  old_data?: any;
+  new_data?: any;
+  changed_by?: string;
+  context?: any;
   created_at: string;
 }

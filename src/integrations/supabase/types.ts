@@ -9,6 +9,42 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      activity_log: {
+        Row: {
+          action_type: string
+          changed_by: string | null
+          context: Json | null
+          created_at: string | null
+          entity_id: string
+          entity_type: string
+          id: string
+          new_data: Json | null
+          old_data: Json | null
+        }
+        Insert: {
+          action_type: string
+          changed_by?: string | null
+          context?: Json | null
+          created_at?: string | null
+          entity_id: string
+          entity_type: string
+          id?: string
+          new_data?: Json | null
+          old_data?: Json | null
+        }
+        Update: {
+          action_type?: string
+          changed_by?: string | null
+          context?: Json | null
+          created_at?: string | null
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          new_data?: Json | null
+          old_data?: Json | null
+        }
+        Relationships: []
+      }
       function_points_history: {
         Row: {
           changed_by: string | null
@@ -277,6 +313,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_entity_history: {
+        Args: { p_entity_type: string; p_entity_id: string; p_limit?: number }
+        Returns: {
+          id: string
+          action_type: string
+          old_data: Json
+          new_data: Json
+          changed_by: string
+          context: Json
+          created_at: string
+        }[]
+      }
       normalize_task_positions: {
         Args: Record<PropertyKey, never>
         Returns: undefined

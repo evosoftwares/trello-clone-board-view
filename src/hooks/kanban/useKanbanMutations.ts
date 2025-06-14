@@ -131,6 +131,30 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
     return updatedTasks;
   };
 
+  // Função auxiliar para registrar atividade manualmente quando necessário
+  const logActivity = async (
+    entityType: string,
+    entityId: string,
+    actionType: string,
+    oldData?: any,
+    newData?: any,
+    context?: any
+  ) => {
+    try {
+      await supabase.from('activity_log').insert({
+        entity_type: entityType,
+        entity_id: entityId,
+        action_type: actionType,
+        old_data: oldData,
+        new_data: newData,
+        changed_by: 'Sistema', // Placeholder - em produção seria o usuário logado
+        context: context
+      });
+    } catch (err) {
+      console.warn('Error logging activity:', err);
+    }
+  };
+
   const moveTask = useCallback(async (taskId: string, newColumnId: string, newPosition: number) => {
     console.log('[MOVE TASK] Starting move:', {
       taskId,
@@ -150,6 +174,7 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
 
     // Backup do estado atual para rollback
     const originalTasks = tasks;
+    const taskToMove = tasks.find(t => t.id === taskId);
 
     // 1. Aplicar mudanças otimisticamente no estado local
     setTasks(currentTasks => applyLocalChanges(currentTasks, updates));
@@ -182,9 +207,25 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
         }
       }
 
+      // 3. Log da movimentação (adicional ao trigger automático)
+      if (taskToMove && taskToMove.column_id !== newColumnId) {
+        await logActivity(
+          'task',
+          taskId,
+          'move',
+          { column_id: taskToMove.column_id, position: taskToMove.position },
+          { column_id: newColumnId, position: newPosition },
+          { 
+            from_column: taskToMove.column_id,
+            to_column: newColumnId,
+            project_id: taskToMove.project_id
+          }
+        );
+      }
+
       console.log('[MOVE TASK] Database sync completed successfully');
 
-      // 3. Validar se as posições estão corretas (opcional)
+      // 4. Validar se as posições estão corretas (opcional)
       try {
         const { data: validationData, error: validationError } = await supabase
           .rpc('validate_task_positions');
@@ -270,6 +311,7 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
 
   const updateTask = useCallback(async (taskId: string, updates: Partial<Omit<Task, 'id' | 'created_at' | 'updated_at'>>) => {
     const originalTasks = tasks;
+    const originalTask = tasks.find(t => t.id === taskId);
     
     const updatedTasks = tasks.map(task => 
       task.id === taskId ? { ...task, ...updates } : task
@@ -299,6 +341,7 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
 
   const deleteTask = useCallback(async (taskId: string) => {
     const originalTasks = tasks;
+    const taskToDelete = tasks.find(t => t.id === taskId);
     
     const updatedTasks = tasks.filter(task => task.id !== taskId);
     setTasks(updatedTasks);
