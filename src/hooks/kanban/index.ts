@@ -1,4 +1,4 @@
 
 export { useKanbanDataFetch } from './useKanbanDataFetch';
-export { useKanbanRealtime } from './useKanbanRealtime';
+// Removido: export { useKanbanRealtime } from './useKanbanRealtime';
 export { useKanbanMutations } from './useKanbanMutations';
