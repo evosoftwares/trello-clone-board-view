@@ -23,7 +23,6 @@ const KanbanBoard = () => {
   
   const { toast } = useToast();
   const [runConfetti, setRunConfetti] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
   const [windowSize, setWindowSize] = useState({
     width: typeof window !== 'undefined' ? window.innerWidth : 0,
     height: typeof window !== 'undefined' ? window.innerHeight : 0,
@@ -54,13 +53,7 @@ const KanbanBoard = () => {
     }
   }, [error, toast]);
 
-  const onDragStart = () => {
-    setIsDragging(true);
-  };
-
   const onDragEnd = async (result: any) => {
-    setIsDragging(false);
-    
     const { destination, source, draggableId } = result;
 
     if (!destination) return;
@@ -142,20 +135,18 @@ const KanbanBoard = () => {
         </div>,
         document.body
       )}
-      <div className={`min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-6 transition-all duration-300 ${
-        isDragging ? 'bg-gradient-to-br from-blue-50 to-blue-100' : ''
-      }`}>
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-6">
         <div className="max-w-7xl mx-auto">
           {/* Header with Logo and Button */}
           <div className="flex items-center justify-between mb-1">
-            <img src="/imagens/logo.svg" alt="Logo" className="w-32 h-32 transition-transform duration-200 hover:scale-105" />
-            <button className="bg-blue-500 hover:bg-blue-600 text-white font-semibold text-sm py-2 px-6 rounded-full transition-all duration-200 hover:scale-105 hover:shadow-lg transform">
+            <img src="/imagens/logo.svg" alt="Logo" className="w-32 h-32" />
+            <button className="bg-blue-500 hover:bg-blue-600 text-white font-semibold text-sm py-2 px-6 rounded-full transition-colors duration-200">
               Protocolos
             </button>
           </div>
 
           {/* Team Section */}
-          <div className="bg-white rounded-2xl shadow-lg p-6 mb-8 transition-all duration-300 hover:shadow-xl">
+          <div className="bg-white rounded-2xl shadow-lg p-6 mb-8">
             <h2 className="text-xl font-semibold text-gray-800 mb-6">Equipe</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {teamMembersWithTaskCount.map((member) => (
@@ -165,8 +156,8 @@ const KanbanBoard = () => {
           </div>
 
           {/* Kanban Columns */}
-          <DragDropContext onDragStart={onDragStart} onDragEnd={onDragEnd}>
-            <div className="bg-white rounded-2xl shadow-lg p-6 transition-all duration-300 hover:shadow-xl">
+          <DragDropContext onDragEnd={onDragEnd}>
+            <div className="bg-white rounded-2xl shadow-lg p-6">
               <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                 {columns.map((column) => (
                   <KanbanColumn 
