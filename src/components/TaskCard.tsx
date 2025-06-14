@@ -25,19 +25,6 @@ const TaskCard: React.FC<TaskCardProps> = ({
   const taskTagsData = (tags || []).filter(tag => taskTagIds.includes(tag.id));
   const taskProject = projects.find(p => p.id === task.project_id);
 
-  const getComplexityColor = (complexity: string) => {
-    switch (complexity) {
-      case 'low':
-        return 'bg-green-100 text-green-600';
-      case 'medium':
-        return 'bg-yellow-100 text-yellow-600';
-      case 'high':
-        return 'bg-red-100 text-red-600';
-      default:
-        return 'bg-sky-100 text-sky-600';
-    }
-  };
-
   return (
     <Draggable draggableId={task.id} index={index}>
       {(provided, snapshot) => (
@@ -69,8 +56,8 @@ const TaskCard: React.FC<TaskCardProps> = ({
             )}
 
             {/* Function Points Badge */}
-            <div className={`w-6 h-6 rounded-full flex items-center justify-center ml-auto ${getComplexityColor(task.complexity || 'medium')}`}>
-              <span className="text-xs font-bold">{task.function_points || 0}</span>
+            <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center ml-auto">
+              <span className="text-xs font-bold text-blue-600">{task.function_points || 0}</span>
             </div>
           </div>
 
