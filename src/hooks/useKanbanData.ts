@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { KanbanColumn, Task, TeamMember, Tag, TaskTag } from '@/types/database';
 
@@ -12,14 +12,10 @@ export const useKanbanData = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchAllData();
-    setupRealtimeSubscriptions();
-  }, []);
-
-  const fetchAllData = async () => {
+  const fetchAllData = useCallback(async () => {
     try {
-      setLoading(true);
+      // Não recarregar tudo se não for o load inicial para evitar flicker
+      // setLoading(true); 
       
       const [columnsRes, tasksRes, membersRes, tagsRes, taskTagsRes] = await Promise.all([
         supabase.from('kanban_columns').select('*').order('position'),
@@ -35,7 +31,6 @@ export const useKanbanData = () => {
       if (tagsRes.error) throw tagsRes.error;
       if (taskTagsRes.error) throw taskTagsRes.error;
 
-      // Cast the data to our interface types
       setColumns((columnsRes.data || []) as KanbanColumn[]);
       setTasks((tasksRes.data || []) as Task[]);
       setTeamMembers((membersRes.data || []) as TeamMember[]);
@@ -48,31 +43,48 @@ export const useKanbanData = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const setupRealtimeSubscriptions = () => {
+  useEffect(() => {
+    fetchAllData();
+
     const channel = supabase
-      .channel('kanban-changes')
-      .on('postgres_changes', 
-        { event: '*', schema: 'public', table: 'kanban_columns' },
-        () => fetchAllData()
-      )
-      .on('postgres_changes', 
-        { event: '*', schema: 'public', table: 'tasks' },
-        () => fetchAllData()
-      )
-      .on('postgres_changes', 
-        { event: '*', schema: 'public', table: 'team_members' },
-        () => fetchAllData()
-      )
+      .channel('kanban-realtime-changes')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tasks' }, (payload) => {
+        console.log('Realtime: Task INSERT received', payload.new);
+        setTasks(currentTasks => {
+            if (currentTasks.some(t => t.id === payload.new.id)) return currentTasks;
+            return [...currentTasks, payload.new as Task];
+        });
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'tasks' }, (payload) => {
+        console.log('Realtime: Task UPDATE received', payload.new);
+        setTasks(currentTasks => 
+            currentTasks.map(task => (task.id === payload.new.id ? payload.new as Task : task))
+        );
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'tasks' }, (payload) => {
+        console.log('Realtime: Task DELETE received', payload.old);
+        setTasks(currentTasks => currentTasks.filter(task => task.id !== (payload.old as any).id));
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'kanban_columns' }, () => fetchAllData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'team_members' }, () => fetchAllData())
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  };
+  }, [fetchAllData]);
 
   const moveTask = async (taskId: string, newColumnId: string, newPosition: number) => {
+    const originalTasks = tasks;
+    
+    // Optimistic update
+    const updatedTasks = tasks.map(task => 
+      task.id === taskId ? { ...task, column_id: newColumnId, position: newPosition } : task
+    );
+    setTasks(updatedTasks);
+
     try {
       const { error } = await supabase
         .from('tasks')
@@ -86,6 +98,8 @@ export const useKanbanData = () => {
     } catch (err: any) {
       console.error('Error moving task:', err);
       setError(err.message);
+      // Revert on error
+      setTasks(originalTasks);
     }
   };
 
@@ -127,3 +141,4 @@ export const useKanbanData = () => {
     refreshData: fetchAllData
   };
 };
+
