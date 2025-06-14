@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { KanbanColumn, Task, TeamMember, Tag, TaskTag } from '@/types/database';
@@ -51,13 +50,9 @@ export const useKanbanData = (selectedProjectId?: string | null) => {
     }
   }, [selectedProjectId]);
 
-  // Use ref to store the latest fetchAllData function to avoid dependency issues
-  const fetchAllDataRef = useRef(fetchAllData);
-  fetchAllDataRef.current = fetchAllData;
-
-  // Setup realtime channel - no dependencies to avoid re-creation
+  // Single effect to handle both data fetching and channel setup
   useEffect(() => {
-    console.log("[KANBAN DATA] Setting up realtime channel, selectedProjectId:", selectedProjectId);
+    console.log("[KANBAN DATA] Effect triggered, selectedProjectId:", selectedProjectId);
     
     // Clean up existing channel first
     if (channelRef.current) {
@@ -65,6 +60,9 @@ export const useKanbanData = (selectedProjectId?: string | null) => {
       supabase.removeChannel(channelRef.current);
       channelRef.current = null;
     }
+
+    // Fetch initial data
+    fetchAllData();
 
     // Create unique channel name to avoid conflicts
     const timestamp = Date.now();
@@ -110,11 +108,11 @@ export const useKanbanData = (selectedProjectId?: string | null) => {
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'kanban_columns' }, () => {
         console.log('Realtime: Columns changed, refetching data');
-        fetchAllDataRef.current();
+        fetchAllData();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'team_members' }, () => {
         console.log('Realtime: Team members changed, refetching data');
-        fetchAllDataRef.current();
+        fetchAllData();
       });
 
     // Store reference and subscribe
@@ -132,13 +130,7 @@ export const useKanbanData = (selectedProjectId?: string | null) => {
         channelRef.current = null;
       }
     };
-  }, [selectedProjectId]); // Only depend on selectedProjectId
-
-  // Separate effect for initial data fetch
-  useEffect(() => {
-    console.log("[KANBAN DATA] Fetching initial data, selectedProjectId:", selectedProjectId);
-    fetchAllData();
-  }, [fetchAllData]);
+  }, [selectedProjectId, fetchAllData]);
 
   const moveTask = async (taskId: string, newColumnId: string, newPosition: number) => {
     const originalTasks = tasks;
