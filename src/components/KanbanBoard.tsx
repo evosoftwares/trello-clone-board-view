@@ -38,7 +38,7 @@ const KanbanBoard = () => {
     deleteTask 
   } = useKanbanData(selectedProjectId);
   
-  const { projects } = useProjectData();
+  const { projects, loading: projectsLoading } = useProjectData();
   const { toast } = useToast();
   const [runConfetti, setRunConfetti] = useState(false);
   const [windowSize, setWindowSize] = useState({
@@ -55,6 +55,17 @@ const KanbanBoard = () => {
       localStorage.removeItem('selectedProjectId');
     }
   }, [selectedProjectId]);
+
+  // Verify selected project still exists
+  useEffect(() => {
+    if (selectedProjectId && !projectsLoading && projects.length > 0) {
+      const projectExists = projects.find(p => p.id === selectedProjectId);
+      if (!projectExists) {
+        console.log('Selected project no longer exists, clearing selection');
+        setSelectedProjectId(null);
+      }
+    }
+  }, [selectedProjectId, projects, projectsLoading]);
 
   const openTaskModal = (task: Task) => setSelectedTask(task);
   const closeTaskModal = () => setSelectedTask(null);
@@ -174,10 +185,11 @@ const KanbanBoard = () => {
   }, [teamMembers, tasks, columns]);
 
   // Check if there are no projects and show helpful message
-  const hasNoProjects = projects.length === 0;
+  const hasNoProjects = !projectsLoading && projects.length === 0;
   const selectedProject = projects.find(p => p.id === selectedProjectId);
+  const isLoading = loading || projectsLoading;
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-6 flex items-center justify-center">
         <div className="text-center">
