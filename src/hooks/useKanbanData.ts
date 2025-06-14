@@ -50,6 +50,10 @@ export const useKanbanData = (selectedProjectId?: string | null) => {
     }
   }, [selectedProjectId]);
 
+  // Use ref to store the latest fetchAllData function to avoid dependency issues
+  const fetchAllDataRef = useRef(fetchAllData);
+  fetchAllDataRef.current = fetchAllData;
+
   // Single effect to handle both data fetching and channel setup
   useEffect(() => {
     console.log("[KANBAN DATA] Effect triggered, selectedProjectId:", selectedProjectId);
@@ -62,7 +66,7 @@ export const useKanbanData = (selectedProjectId?: string | null) => {
     }
 
     // Fetch initial data
-    fetchAllData();
+    fetchAllDataRef.current();
 
     // Create unique channel name to avoid conflicts
     const timestamp = Date.now();
@@ -108,11 +112,11 @@ export const useKanbanData = (selectedProjectId?: string | null) => {
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'kanban_columns' }, () => {
         console.log('Realtime: Columns changed, refetching data');
-        fetchAllData();
+        fetchAllDataRef.current();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'team_members' }, () => {
         console.log('Realtime: Team members changed, refetching data');
-        fetchAllData();
+        fetchAllDataRef.current();
       });
 
     // Store reference and subscribe
@@ -130,7 +134,7 @@ export const useKanbanData = (selectedProjectId?: string | null) => {
         channelRef.current = null;
       }
     };
-  }, [selectedProjectId, fetchAllData]);
+  }, [selectedProjectId]); // Only depend on selectedProjectId
 
   const moveTask = async (taskId: string, newColumnId: string, newPosition: number) => {
     const originalTasks = tasks;
