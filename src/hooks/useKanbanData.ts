@@ -1,7 +1,7 @@
-import { useEffect, useCallback, useRef } from 'react';
+
+import { useEffect, useCallback, useState } from 'react';
 import { Task } from '@/types/database';
 import { useKanbanDataFetch } from './kanban/useKanbanDataFetch';
-import { useKanbanRealtime } from './kanban/useKanbanRealtime';
 import { useKanbanMutations } from './kanban/useKanbanMutations';
 
 export const useKanbanData = (selectedProjectId?: string | null) => {
@@ -21,61 +21,23 @@ export const useKanbanData = (selectedProjectId?: string | null) => {
     setTaskTags
   } = useKanbanDataFetch();
 
-  const setError = useCallback((newError: string | null) => {
-    // Error is managed by the fetch hook, but we need to expose it for mutations
-  }, []);
+  // error state control simplificada
+  const [internalError, setInternalError] = useState<string | null>(null);
 
   const { moveTask, createTask, updateTask, deleteTask } = useKanbanMutations({
     tasks,
     setTasks,
-    setError
+    setError: setInternalError
   });
 
-  // Stable references for realtime callbacks
-  const handleTaskInsert = useCallback((newTask: Task) => {
-    setTasks(currentTasks => {
-      if (currentTasks.some(t => t.id === newTask.id)) return currentTasks;
-      return [...currentTasks, newTask];
-    });
-  }, [setTasks]);
-
-  const handleTaskUpdate = useCallback((updatedTask: Task) => {
-    setTasks(currentTasks => {
-      if (selectedProjectId && updatedTask.project_id !== selectedProjectId) {
-        return currentTasks.filter(task => task.id !== updatedTask.id);
-      }
-      const taskExists = currentTasks.some(task => task.id === updatedTask.id);
-      if (taskExists) {
-        return currentTasks.map(task => (task.id === updatedTask.id ? updatedTask : task));
-      } else if (!selectedProjectId || updatedTask.project_id === selectedProjectId) {
-        return [...currentTasks, updatedTask];
-      }
-      return currentTasks;
-    });
-  }, [selectedProjectId, setTasks]);
-
-  const handleTaskDelete = useCallback((taskId: string) => {
-    setTasks(currentTasks => currentTasks.filter(task => task.id !== taskId));
-  }, [setTasks]);
-
-  const handleDataChange = useCallback(() => {
-    fetchAllData(selectedProjectId);
-  }, [fetchAllData, selectedProjectId]);
-
-  // Set up realtime with stable callbacks
-  useKanbanRealtime({
-    selectedProjectId,
-    onTaskInsert: handleTaskInsert,
-    onTaskUpdate: handleTaskUpdate,
-    onTaskDelete: handleTaskDelete,
-    onDataChange: handleDataChange
-  });
-
-  // Initial data fetch
-  useEffect(() => {
-    console.log("[KANBAN DATA] Initial fetch for project:", selectedProjectId);
+  // Fetch inicial e após refresh/manual
+  const refreshData = useCallback(() => {
     fetchAllData(selectedProjectId);
   }, [selectedProjectId, fetchAllData]);
+
+  useEffect(() => {
+    refreshData();
+  }, [refreshData]);
 
   return {
     columns,
@@ -84,11 +46,11 @@ export const useKanbanData = (selectedProjectId?: string | null) => {
     tags,
     taskTags,
     loading,
-    error,
+    error: error || internalError,
     moveTask,
     createTask,
     updateTask,
     deleteTask,
-    refreshData: () => fetchAllData(selectedProjectId)
+    refreshData
   };
 };

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import ReactDOM from 'react-dom';
 import { DragDropContext } from '@hello-pangea/dnd';
@@ -35,7 +34,8 @@ const KanbanBoard = () => {
     moveTask, 
     createTask, 
     updateTask, 
-    deleteTask 
+    deleteTask,
+    refreshData
   } = useKanbanData(selectedProjectId);
   
   const { projects, loading: projectsLoading } = useProjectData();
@@ -189,7 +189,7 @@ const KanbanBoard = () => {
   const selectedProject = projects.find(p => p.id === selectedProjectId);
   const isLoading = loading || projectsLoading;
 
-  if (isLoading) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-6 flex items-center justify-center">
         <div className="text-center">
@@ -202,27 +202,22 @@ const KanbanBoard = () => {
 
   return (
     <>
-      {runConfetti && typeof document !== 'undefined' && ReactDOM.createPortal(
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          width: '100vw',
-          height: '100vh',
-          pointerEvents: 'none',
-          zIndex: 9999
-        }}>
-          <Confetti
-            width={windowSize.width}
-            height={windowSize.height}
-            recycle={false}
-            numberOfPieces={400}
-            gravity={0.25}
-            onConfettiComplete={() => setRunConfetti(false)}
-          />
-        </div>,
-        document.body
-      )}
+      {/* Refresh e erro sempre visíveis */}
+      <div className="fixed top-3 right-3 z-50 flex gap-2">
+        <button
+          className="bg-blue-500 hover:bg-blue-600 text-white font-semibold text-sm py-2 px-4 rounded-full shadow transition"
+          onClick={refreshData}
+          aria-label="Atualizar dados do Kanban"
+        >
+          Atualizar Kanban
+        </button>
+        {error && (
+          <div className="bg-red-100 text-red-700 font-medium px-3 py-2 rounded shadow border border-red-300 flex items-center">
+            {error}
+          </div>
+        )}
+      </div>
+
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-6">
         <div className="max-w-7xl mx-auto">
           {/* Header with Logo, Project Selector and Buttons */}
