@@ -11,7 +11,7 @@ interface UseKanbanMutationsProps {
 
 export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutationsProps) => {
   
-  // Função auxiliar para calcular novas posições
+  // Função auxiliar para calcular novas posições - VERSÃO ROBUSTA
   const calculateNewPositions = (
     allTasks: Task[],
     taskId: string,
@@ -24,29 +24,52 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
     const updates: Array<{ id: string; column_id: string; position: number }> = [];
     const oldColumnId = taskToMove.column_id;
 
-    // Se movendo dentro da mesma coluna
+    console.log('[CALCULATE POSITIONS] Task to move:', {
+      taskId,
+      from: { columnId: oldColumnId, currentPosition: taskToMove.position },
+      to: { columnId: newColumnId, newPosition }
+    });
+
     if (oldColumnId === newColumnId) {
+      // MOVIMENTO DENTRO DA MESMA COLUNA
       const columnTasks = allTasks
-        .filter(t => t.column_id === newColumnId && t.id !== taskId)
+        .filter(t => t.column_id === newColumnId)
         .sort((a, b) => a.position - b.position);
 
-      // Inserir a tarefa na nova posição
-      columnTasks.splice(newPosition, 0, { ...taskToMove, position: newPosition });
+      console.log('[CALCULATE POSITIONS] Column tasks before move:', 
+        columnTasks.map(t => ({ id: t.id, title: t.title, position: t.position })));
 
-      // Recalcular todas as posições da coluna
-      columnTasks.forEach((task, index) => {
-        if (task.position !== index) {
+      // Criar array de IDs ordenado por posição atual
+      const taskIds = columnTasks.map(t => t.id);
+      
+      // Remover a tarefa que está sendo movida
+      const currentIndex = taskIds.indexOf(taskId);
+      if (currentIndex === -1) return [];
+      
+      taskIds.splice(currentIndex, 1);
+      
+      // Inserir na nova posição
+      const targetIndex = Math.min(Math.max(0, newPosition), taskIds.length);
+      taskIds.splice(targetIndex, 0, taskId);
+
+      console.log('[CALCULATE POSITIONS] New order:', taskIds);
+
+      // Gerar updates para todas as tarefas que mudaram de posição
+      taskIds.forEach((id, index) => {
+        const task = columnTasks.find(t => t.id === id);
+        if (task && task.position !== index) {
           updates.push({
-            id: task.id,
+            id: id,
             column_id: newColumnId,
             position: index
           });
         }
       });
+
     } else {
-      // Movendo entre colunas diferentes
+      // MOVIMENTO ENTRE COLUNAS DIFERENTES
       
-      // 1. Reordenar coluna de origem (remover a tarefa)
+      // 1. Reorganizar coluna de origem (remover a tarefa)
       const oldColumnTasks = allTasks
         .filter(t => t.column_id === oldColumnId && t.id !== taskId)
         .sort((a, b) => a.position - b.position);
@@ -61,24 +84,29 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
         }
       });
 
-      // 2. Reordenar coluna de destino (inserir a tarefa)
+      // 2. Reorganizar coluna de destino (inserir a tarefa)
       const newColumnTasks = allTasks
         .filter(t => t.column_id === newColumnId)
         .sort((a, b) => a.position - b.position);
 
-      // Inserir a tarefa na nova posição
-      newColumnTasks.splice(newPosition, 0, { ...taskToMove, column_id: newColumnId, position: newPosition });
+      // Criar array de IDs da coluna de destino
+      const newColumnTaskIds = newColumnTasks.map(t => t.id);
+      
+      // Inserir a tarefa na posição correta
+      const insertPosition = Math.min(Math.max(0, newPosition), newColumnTaskIds.length);
+      newColumnTaskIds.splice(insertPosition, 0, taskId);
 
-      // Recalcular todas as posições da coluna de destino
-      newColumnTasks.forEach((task, index) => {
+      // Gerar updates para todas as tarefas da coluna de destino
+      newColumnTaskIds.forEach((id, index) => {
         updates.push({
-          id: task.id,
+          id: id,
           column_id: newColumnId,
           position: index
         });
       });
     }
 
+    console.log('[CALCULATE POSITIONS] Final updates:', updates);
     return updates;
   };
 
@@ -127,15 +155,15 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
     setTasks(currentTasks => applyLocalChanges(currentTasks, updates));
 
     try {
-      // 2. Aplicar todas as mudanças no banco em uma transação
+      // 2. Aplicar todas as mudanças no banco usando a função RPC
       const { error } = await supabase.rpc('update_multiple_task_positions', {
         updates: updates
       });
 
-      // Se a função RPC não existir, fazer updates individuais em paralelo
-      if (error && error.message.includes('function update_multiple_task_positions')) {
-        console.log('[MOVE TASK] Using individual updates');
+      if (error) {
+        console.error('[MOVE TASK] RPC error, falling back to individual updates:', error);
         
+        // Fallback: fazer updates individuais em paralelo
         const updatePromises = updates.map(update =>
           supabase
             .from('tasks')
@@ -152,32 +180,34 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
         if (failedUpdate?.error) {
           throw failedUpdate.error;
         }
-      } else if (error) {
-        throw error;
       }
 
       console.log('[MOVE TASK] Database sync completed successfully');
 
-      // 3. Validar se as posições estão corretas
-      const { data: validationData, error: validationError } = await supabase
-        .rpc('validate_task_positions');
+      // 3. Validar se as posições estão corretas (opcional)
+      try {
+        const { data: validationData, error: validationError } = await supabase
+          .rpc('validate_task_positions');
 
-      if (validationError) {
-        console.warn('[MOVE TASK] Validation error:', validationError);
-      } else if (validationData && validationData.some((col: any) => col.has_duplicates)) {
-        console.warn('[MOVE TASK] Position inconsistencies detected, normalizing...');
-        await supabase.rpc('normalize_task_positions');
-        
-        // Recarregar dados após normalização
-        const { data: freshTasks, error: fetchError } = await supabase
-          .from('tasks')
-          .select('*')
-          .order('column_id')
-          .order('position', { ascending: true });
+        if (validationError) {
+          console.warn('[MOVE TASK] Validation error:', validationError);
+        } else if (validationData && validationData.some((col: any) => col.has_duplicates)) {
+          console.warn('[MOVE TASK] Position inconsistencies detected, normalizing...');
+          await supabase.rpc('normalize_task_positions');
+          
+          // Recarregar dados após normalização
+          const { data: freshTasks, error: fetchError } = await supabase
+            .from('tasks')
+            .select('*')
+            .order('column_id')
+            .order('position', { ascending: true });
 
-        if (!fetchError && freshTasks) {
-          setTasks(freshTasks as Task[]);
+          if (!fetchError && freshTasks) {
+            setTasks(freshTasks as Task[]);
+          }
         }
+      } catch (validationErr) {
+        console.warn('[MOVE TASK] Validation step failed, but move was successful:', validationErr);
       }
 
     } catch (err: any) {

@@ -281,6 +281,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
+      update_multiple_task_positions: {
+        Args: { updates: Json }
+        Returns: undefined
+      }
       validate_task_positions: {
         Args: Record<PropertyKey, never>
         Returns: {
