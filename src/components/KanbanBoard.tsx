@@ -1,10 +1,11 @@
+
 import React, { useState, useEffect, useMemo, createContext, useContext } from 'react';
 import ReactDOM from 'react-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { DragDropContext } from '@hello-pangea/dnd';
-import { Trash } from 'lucide-react';
+import { Trash, User, Clock, Target, Save } from 'lucide-react';
 
 import TeamMember from './TeamMember';
 import KanbanColumn from './KanbanColumn';
@@ -42,7 +43,7 @@ export const useKanban = () => {
 
 // --- Task Detail Modal Component ---
 const taskFormSchema = z.object({
-  title: z.string().min(1, 'Title is required.'),
+  title: z.string().min(1, 'Título é obrigatório.'),
   description: z.string().optional(),
   assignee: z.string().optional(),
   function_points: z.coerce.number().min(0).optional(),
@@ -61,6 +62,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, isOpen, onClose
   const { teamMembers, updateTask, deleteTask } = useKanban();
   const { toast } = useToast();
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   
   const form = useForm<z.infer<typeof taskFormSchema>>({
     resolver: zodResolver(taskFormSchema),
@@ -83,17 +85,41 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, isOpen, onClose
     });
   }, [task, form]);
 
+  const getComplexityConfig = (complexity: string) => {
+    switch (complexity) {
+      case 'low':
+        return { color: 'bg-emerald-50 text-emerald-700 border-emerald-200', label: 'Baixa' };
+      case 'medium':
+        return { color: 'bg-amber-50 text-amber-700 border-amber-200', label: 'Média' };
+      case 'high':
+        return { color: 'bg-rose-50 text-rose-700 border-rose-200', label: 'Alta' };
+      default:
+        return { color: 'bg-blue-50 text-blue-700 border-blue-200', label: 'Média' };
+    }
+  };
+
   const onSubmit = async (values: z.infer<typeof taskFormSchema>) => {
+    setIsSaving(true);
     try {
       const updates: Partial<Task> = {
         ...values,
         assignee: values.assignee === UNASSIGNED_VALUE ? null : values.assignee,
       };
       await updateTask(task.id, updates);
-      toast({ title: 'Success', description: 'Task updated successfully.' });
+      toast({ 
+        title: 'Sucesso! ✨', 
+        description: 'Tarefa atualizada com sucesso.',
+        className: 'bg-blue-50 border-blue-200 text-blue-900'
+      });
       onClose();
     } catch (error) {
-      toast({ title: 'Error', description: 'Failed to update task.', variant: 'destructive' });
+      toast({ 
+        title: 'Erro', 
+        description: 'Falha ao atualizar a tarefa.', 
+        variant: 'destructive' 
+      });
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -101,83 +127,236 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, isOpen, onClose
     setIsDeleting(true);
     try {
       await deleteTask(task.id);
-      toast({ title: 'Success', description: 'Task deleted.' });
+      toast({ 
+        title: 'Tarefa removida', 
+        description: 'A tarefa foi deletada com sucesso.',
+        className: 'bg-red-50 border-red-200 text-red-900'
+      });
       onClose();
     } catch (error) {
-      toast({ title: 'Error', description: 'Failed to delete task.', variant: 'destructive' });
+      toast({ 
+        title: 'Erro', 
+        description: 'Falha ao deletar a tarefa.', 
+        variant: 'destructive' 
+      });
     } finally {
       setIsDeleting(false);
     }
   };
 
+  const complexityConfig = getComplexityConfig(form.watch('complexity'));
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[600px] grid-rows-[auto_1fr_auto] max-h-[90vh]">
-        <DialogHeader>
-          <DialogTitle>Edit Task</DialogTitle>
+      <DialogContent className="sm:max-w-[650px] max-h-[90vh] bg-white border-0 shadow-2xl rounded-3xl overflow-hidden">
+        <DialogHeader className="px-8 pt-8 pb-2">
+          <DialogTitle className="text-2xl font-bold text-gray-900 flex items-center gap-3">
+            <div className="w-10 h-10 bg-blue-100 rounded-2xl flex items-center justify-center">
+              <Target className="w-5 h-5 text-blue-600" />
+            </div>
+            Editar Tarefa
+          </DialogTitle>
         </DialogHeader>
-        <div className="overflow-y-auto pr-6">
-            <Form {...form}>
-              <form id="edit-task-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                <FormField control={form.control} name="title" render={({ field }) => (
+        
+        <div className="px-8 pb-8 overflow-y-auto">
+          <Form {...form}>
+            <form id="edit-task-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              {/* Title Field */}
+              <FormField control={form.control} name="title" render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                    Título
+                  </FormLabel>
+                  <FormControl>
+                    <Input 
+                      {...field} 
+                      className="h-12 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200" 
+                      placeholder="Digite o título da tarefa..."
+                    />
+                  </FormControl>
+                  <FormMessage className="text-rose-600 text-xs" />
+                </FormItem>
+              )} />
+
+              {/* Description Field */}
+              <FormField control={form.control} name="description" render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                    <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                    Descrição
+                  </FormLabel>
+                  <FormControl>
+                    <Textarea 
+                      {...field} 
+                      rows={4} 
+                      className="border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 resize-none" 
+                      placeholder="Descreva os detalhes da tarefa..."
+                    />
+                  </FormControl>
+                  <FormMessage className="text-rose-600 text-xs" />
+                </FormItem>
+              )} />
+
+              {/* Assignee Field */}
+              <FormField control={form.control} name="assignee" render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                    <User className="w-4 h-4 text-blue-500" />
+                    Responsável
+                  </FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger className="h-12 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200">
+                        <SelectValue placeholder="Selecione um responsável" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent className="rounded-xl border-gray-200 shadow-xl">
+                      <SelectItem value={UNASSIGNED_VALUE} className="rounded-lg">
+                        <span className="text-gray-500">Não atribuído</span>
+                      </SelectItem>
+                      {teamMembers.map(member => (
+                        <SelectItem key={member.id} value={member.name} className="rounded-lg">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                              <span className="text-blue-600 text-sm font-medium">
+                                {member.name.charAt(0).toUpperCase()}
+                              </span>
+                            </div>
+                            {member.name}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage className="text-rose-600 text-xs" />
+                </FormItem>
+              )} />
+
+              {/* Function Points and Complexity Row */}
+              <div className="grid grid-cols-2 gap-6">
+                <FormField control={form.control} name="function_points" render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Title</FormLabel>
-                    <FormControl><Input {...field} /></FormControl>
-                    <FormMessage />
+                    <FormLabel className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                      <Target className="w-4 h-4 text-blue-500" />
+                      Pontos de Função
+                    </FormLabel>
+                    <FormControl>
+                      <Input 
+                        type="number" 
+                        {...field} 
+                        className="h-12 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200" 
+                        placeholder="0"
+                      />
+                    </FormControl>
+                    <FormMessage className="text-rose-600 text-xs" />
                   </FormItem>
                 )} />
-                <FormField control={form.control} name="description" render={({ field }) => (
+
+                <FormField control={form.control} name="complexity" render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Description</FormLabel>
-                    <FormControl><Textarea {...field} rows={4} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-                <FormField control={form.control} name="assignee" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Assignee</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl><SelectTrigger><SelectValue placeholder="Select an assignee" /></SelectTrigger></FormControl>
-                      <SelectContent>
-                        <SelectItem value={UNASSIGNED_VALUE}>Unassigned</SelectItem>
-                        {teamMembers.map(member => (
-                          <SelectItem key={member.id} value={member.name}>{member.name}</SelectItem>
-                        ))}
+                    <FormLabel className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-blue-500" />
+                      Complexidade
+                    </FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger className="h-12 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200">
+                          <SelectValue placeholder="Selecione a complexidade" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent className="rounded-xl border-gray-200 shadow-xl">
+                        <SelectItem value="low" className="rounded-lg">
+                          <div className="flex items-center gap-3">
+                            <div className="w-3 h-3 bg-emerald-500 rounded-full"></div>
+                            Baixa
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="medium" className="rounded-lg">
+                          <div className="flex items-center gap-3">
+                            <div className="w-3 h-3 bg-amber-500 rounded-full"></div>
+                            Média
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="high" className="rounded-lg">
+                          <div className="flex items-center gap-3">
+                            <div className="w-3 h-3 bg-rose-500 rounded-full"></div>
+                            Alta
+                          </div>
+                        </SelectItem>
                       </SelectContent>
                     </Select>
-                    <FormMessage />
+                    <FormMessage className="text-rose-600 text-xs" />
                   </FormItem>
                 )} />
-                <div className="grid grid-cols-2 gap-4">
-                    <FormField control={form.control} name="function_points" render={({ field }) => (
-                        <FormItem><FormLabel>Function Points</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>
-                    )} />
-                    <FormField control={form.control} name="complexity" render={({ field }) => (
-                        <FormItem><FormLabel>Complexity</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select complexity" /></SelectTrigger></FormControl><SelectContent><SelectItem value="low">Low</SelectItem><SelectItem value="medium">Medium</SelectItem><SelectItem value="high">High</SelectItem></SelectContent></Select><FormMessage /></FormItem>
-                    )} />
+              </div>
+
+              {/* Complexity Preview */}
+              <div className={`p-4 rounded-xl border ${complexityConfig.color} transition-all duration-200`}>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Complexidade Selecionada</span>
+                  <span className="font-semibold">{complexityConfig.label}</span>
                 </div>
-              </form>
-            </Form>
+              </div>
+            </form>
+          </Form>
         </div>
-        <DialogFooter className="pt-4 border-t items-center">
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="destructive" className="mr-auto"><Trash className="w-4 h-4 mr-2"/> Delete Task</Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This action cannot be undone. This will permanently delete the task.</AlertDialogDescription></AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleDelete} disabled={isDeleting}>
-                    {isDeleting ? 'Deleting...' : 'Delete'}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          <DialogClose asChild><Button type="button" variant="secondary">Cancel</Button></DialogClose>
-          <Button type="submit" form="edit-task-form" disabled={form.formState.isSubmitting}>
-            {form.formState.isSubmitting ? 'Saving...' : 'Save Changes'}
-          </Button>
+
+        <DialogFooter className="px-8 pb-8 pt-4 border-t border-gray-100 flex items-center justify-between">
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button 
+                variant="outline" 
+                className="border-rose-200 text-rose-600 hover:bg-rose-50 hover:border-rose-300 rounded-xl h-11 px-6 transition-all duration-200"
+              >
+                <Trash className="w-4 h-4 mr-2" />
+                Deletar
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent className="rounded-2xl border-0 shadow-2xl">
+              <AlertDialogHeader>
+                <AlertDialogTitle className="text-xl font-bold text-gray-900">
+                  Confirmar exclusão
+                </AlertDialogTitle>
+                <AlertDialogDescription className="text-gray-600">
+                  Esta ação não pode ser desfeita. A tarefa será permanentemente deletada.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter className="gap-3">
+                <AlertDialogCancel className="rounded-xl h-11">
+                  Cancelar
+                </AlertDialogCancel>
+                <AlertDialogAction 
+                  onClick={handleDelete} 
+                  disabled={isDeleting}
+                  className="bg-rose-600 hover:bg-rose-700 rounded-xl h-11"
+                >
+                  {isDeleting ? 'Deletando...' : 'Deletar'}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          <div className="flex gap-3">
+            <DialogClose asChild>
+              <Button 
+                type="button" 
+                variant="outline" 
+                className="rounded-xl h-11 px-6 border-gray-200 hover:bg-gray-50 transition-all duration-200"
+              >
+                Cancelar
+              </Button>
+            </DialogClose>
+            <Button 
+              type="submit" 
+              form="edit-task-form" 
+              disabled={isSaving}
+              className="bg-blue-600 hover:bg-blue-700 rounded-xl h-11 px-6 transition-all duration-200 shadow-lg hover:shadow-xl"
+            >
+              <Save className="w-4 h-4 mr-2" />
+              {isSaving ? 'Salvando...' : 'Salvar Alterações'}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
