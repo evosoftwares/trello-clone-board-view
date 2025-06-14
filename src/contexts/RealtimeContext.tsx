@@ -134,9 +134,9 @@ export const RealtimeProvider: React.FC<RealtimeProviderProps> = ({ children }) 
         setIsConnected(false);
       }
       
-      if(status !== 'SUBSCRIBING'){
-        isProcessingRef.current = false;
-      }
+      // Any status received from the subscribe callback means the process has finished.
+      // We can now allow another subscription to happen.
+      isProcessingRef.current = false;
     });
 
   }, [unsubscribeFromProject]);
