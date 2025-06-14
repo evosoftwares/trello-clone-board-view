@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { KanbanColumn, Task, TeamMember, Tag, TaskTag } from '@/types/database';
@@ -11,9 +12,11 @@ export const useKanbanData = (selectedProjectId?: string | null) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const channelRef = useRef<any>(null);
+  const isSubscribedRef = useRef(false);
 
   const fetchAllData = useCallback(async () => {
     try {
+      setLoading(true);
       // Build tasks query with optional project filter
       let tasksQuery = supabase.from('tasks').select('*').order('position');
       
@@ -49,29 +52,35 @@ export const useKanbanData = (selectedProjectId?: string | null) => {
     }
   }, [selectedProjectId]);
 
+  // Função para limpar canal de forma segura
+  const cleanupChannel = useCallback(() => {
+    if (channelRef.current && isSubscribedRef.current) {
+      try {
+        console.log("[KANBAN DATA] Cleaning up channel...");
+        channelRef.current.unsubscribe();
+        isSubscribedRef.current = false;
+      } catch (e) {
+        console.warn("[KANBAN DATA] Error cleaning up channel:", e);
+      }
+    }
+    channelRef.current = null;
+  }, []);
+
   useEffect(() => {
     fetchAllData();
 
-    // Always cleanup before creating a new channel
-    if (channelRef.current) {
-      try {
-        console.log("[KANBAN DATA] Cleaning up previous channel...");
-        // Unsubscribe from previous channel if exists
-        channelRef.current.unsubscribe();
-      } catch (e) {
-        console.warn("[KANBAN DATA] Error on previous channel unsubscribe:", e);
-      }
-      channelRef.current = null;
-    }
+    // Cleanup any existing channel first
+    cleanupChannel();
 
+    // Create unique channel name
     const timestamp = Date.now();
     const channelName = selectedProjectId
       ? `kanban-${selectedProjectId}-${timestamp}`
       : `kanban-all-${timestamp}`;
 
-    console.log("[KANBAN DATA] Creating new channel:", channelName);
+    console.log("[KANBAN DATA] Creating channel:", channelName);
 
-    // Create a new channel
+    // Create new channel
     const channel = supabase
       .channel(channelName)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tasks' }, (payload) => {
@@ -109,28 +118,23 @@ export const useKanbanData = (selectedProjectId?: string | null) => {
 
     channelRef.current = channel;
 
-    // Subscribe to the new channel ONLY ONCE per instance
-    let subscribed = false;
-    const subscription = channel.subscribe((status: string) => {
-      console.log("[KANBAN DATA] Channel status:", status);
-      if (status === "SUBSCRIBED") {
-        subscribed = true;
-      }
-    });
-
-    // Cleanup when effect unmounts or dependencies change
-    return () => {
-      if (channelRef.current) {
-        try {
-          console.log("[KANBAN DATA] Cleanup: unsubscribing from", channelName);
-          channelRef.current.unsubscribe();
-        } catch (e) {
-          console.warn("[KANBAN DATA] Error on unsubscribe:", e);
+    // Subscribe only if not already subscribed
+    if (!isSubscribedRef.current) {
+      channel.subscribe((status: string) => {
+        console.log("[KANBAN DATA] Channel status:", status);
+        if (status === "SUBSCRIBED") {
+          isSubscribedRef.current = true;
+        } else if (status === "CLOSED") {
+          isSubscribedRef.current = false;
         }
-        channelRef.current = null;
-      }
+      });
+    }
+
+    // Cleanup function
+    return () => {
+      cleanupChannel();
     };
-  }, [selectedProjectId]);  // no fetchAllData in dependencies
+  }, [selectedProjectId]); // Removido fetchAllData das dependências
 
   const moveTask = async (taskId: string, newColumnId: string, newPosition: number) => {
     const originalTasks = tasks;
