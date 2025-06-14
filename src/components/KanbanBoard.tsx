@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import ReactDOM from 'react-dom';
 import { DragDropContext } from '@hello-pangea/dnd';
@@ -121,8 +120,8 @@ const KanbanBoard = () => {
           description: `Tarefa "${movedTask.title}" foi concluída!`,
         });
         
-        // Stop confetti after 3 seconds
-        setTimeout(() => setRunConfetti(false), 3000);
+        // Stop confetti after 8 seconds to let all pieces fall
+        setTimeout(() => setRunConfetti(false), 8000);
       }
     } catch (err) {
       console.error('Error in drag end:', err);
@@ -203,6 +202,7 @@ const KanbanBoard = () => {
           height={windowSize.height}
           recycle={false}
           numberOfPieces={200}
+          gravity={0.3}
         />
       )}
 
