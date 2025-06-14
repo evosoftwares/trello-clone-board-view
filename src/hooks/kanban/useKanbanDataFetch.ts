@@ -3,6 +3,10 @@ import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { KanbanColumn, Task, TeamMember, Tag, TaskTag } from '@/types/database';
 
+// DEBUG: Ensure no supabase.channel calls remain
+// (If you see this log on load, there's a bug)
+console.debug('[KANBAN DATA FETCH] Loaded - no Realtime subscriptions here.');
+
 export const useKanbanDataFetch = () => {
   const [columns, setColumns] = useState<KanbanColumn[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);

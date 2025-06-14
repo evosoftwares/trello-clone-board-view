@@ -164,6 +164,9 @@ const KanbanBoard = () => {
     }
   };
 
+  // DEBUG: Detect any Realtime activity
+  console.debug('[KANBAN BOARD] Mounted - should be no Realtime subscriptions here.');
+
   // Calculate stats for team members - only count function points from "Concluído" column
   const teamMembersWithStats = useMemo(() => {
     const completedColumn = columns.find(col => col.title === 'Concluído');
