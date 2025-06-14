@@ -1,3 +1,4 @@
+
 import { useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Task } from '@/types/database';
@@ -9,6 +10,99 @@ interface UseKanbanMutationsProps {
 }
 
 export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutationsProps) => {
+  
+  // Função auxiliar para calcular novas posições
+  const calculateNewPositions = (
+    allTasks: Task[],
+    taskId: string,
+    newColumnId: string,
+    newPosition: number
+  ) => {
+    const taskToMove = allTasks.find(t => t.id === taskId);
+    if (!taskToMove) return [];
+
+    const updates: Array<{ id: string; column_id: string; position: number }> = [];
+    const oldColumnId = taskToMove.column_id;
+
+    // Se movendo dentro da mesma coluna
+    if (oldColumnId === newColumnId) {
+      const columnTasks = allTasks
+        .filter(t => t.column_id === newColumnId && t.id !== taskId)
+        .sort((a, b) => a.position - b.position);
+
+      // Inserir a tarefa na nova posição
+      columnTasks.splice(newPosition, 0, { ...taskToMove, position: newPosition });
+
+      // Recalcular todas as posições da coluna
+      columnTasks.forEach((task, index) => {
+        if (task.position !== index) {
+          updates.push({
+            id: task.id,
+            column_id: newColumnId,
+            position: index
+          });
+        }
+      });
+    } else {
+      // Movendo entre colunas diferentes
+      
+      // 1. Reordenar coluna de origem (remover a tarefa)
+      const oldColumnTasks = allTasks
+        .filter(t => t.column_id === oldColumnId && t.id !== taskId)
+        .sort((a, b) => a.position - b.position);
+
+      oldColumnTasks.forEach((task, index) => {
+        if (task.position !== index) {
+          updates.push({
+            id: task.id,
+            column_id: oldColumnId,
+            position: index
+          });
+        }
+      });
+
+      // 2. Reordenar coluna de destino (inserir a tarefa)
+      const newColumnTasks = allTasks
+        .filter(t => t.column_id === newColumnId)
+        .sort((a, b) => a.position - b.position);
+
+      // Inserir a tarefa na nova posição
+      newColumnTasks.splice(newPosition, 0, { ...taskToMove, column_id: newColumnId, position: newPosition });
+
+      // Recalcular todas as posições da coluna de destino
+      newColumnTasks.forEach((task, index) => {
+        updates.push({
+          id: task.id,
+          column_id: newColumnId,
+          position: index
+        });
+      });
+    }
+
+    return updates;
+  };
+
+  // Função para aplicar mudanças no estado local
+  const applyLocalChanges = (
+    currentTasks: Task[],
+    updates: Array<{ id: string; column_id: string; position: number }>
+  ): Task[] => {
+    const updatedTasks = [...currentTasks];
+    
+    updates.forEach(update => {
+      const taskIndex = updatedTasks.findIndex(t => t.id === update.id);
+      if (taskIndex !== -1) {
+        updatedTasks[taskIndex] = {
+          ...updatedTasks[taskIndex],
+          column_id: update.column_id,
+          position: update.position
+        };
+      }
+    });
+
+    return updatedTasks;
+  };
+
   const moveTask = useCallback(async (taskId: string, newColumnId: string, newPosition: number) => {
     console.log('[MOVE TASK] Starting move:', {
       taskId,
@@ -16,44 +110,84 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
       newPosition
     });
 
-    // Step 1: Update local state immediately (optimistic update)
-    setTasks(currentTasks => {
-      const updatedTasks = [...currentTasks];
-      
-      // Find the task to move
-      const taskIndex = updatedTasks.findIndex(t => t.id === taskId);
-      if (taskIndex === -1) return currentTasks;
-      
-      // Update the task directly in place
-      updatedTasks[taskIndex] = {
-        ...updatedTasks[taskIndex],
-        column_id: newColumnId,
-        position: newPosition
-      };
-      
-      console.log('[MOVE TASK] Local state updated immediately');
-      return updatedTasks;
-    });
+    // Calcular todas as mudanças necessárias
+    const updates = calculateNewPositions(tasks, taskId, newColumnId, newPosition);
+    
+    if (updates.length === 0) {
+      console.log('[MOVE TASK] No updates needed');
+      return;
+    }
 
-    // Step 2: Sync with Supabase in background
+    console.log('[MOVE TASK] Calculated updates:', updates);
+
+    // Backup do estado atual para rollback
+    const originalTasks = tasks;
+
+    // 1. Aplicar mudanças otimisticamente no estado local
+    setTasks(currentTasks => applyLocalChanges(currentTasks, updates));
+
     try {
-      const { error: moveError } = await supabase
-        .from('tasks')
-        .update({ 
-          column_id: newColumnId, 
-          position: newPosition 
-        })
-        .eq('id', taskId);
+      // 2. Aplicar todas as mudanças no banco em uma transação
+      const { error } = await supabase.rpc('update_multiple_task_positions', {
+        updates: updates
+      });
 
-      if (moveError) throw moveError;
+      // Se a função RPC não existir, fazer updates individuais em paralelo
+      if (error && error.message.includes('function update_multiple_task_positions')) {
+        console.log('[MOVE TASK] Using individual updates');
+        
+        const updatePromises = updates.map(update =>
+          supabase
+            .from('tasks')
+            .update({ 
+              column_id: update.column_id, 
+              position: update.position 
+            })
+            .eq('id', update.id)
+        );
+
+        const results = await Promise.all(updatePromises);
+        const failedUpdate = results.find(result => result.error);
+        
+        if (failedUpdate?.error) {
+          throw failedUpdate.error;
+        }
+      } else if (error) {
+        throw error;
+      }
 
       console.log('[MOVE TASK] Database sync completed successfully');
 
+      // 3. Validar se as posições estão corretas
+      const { data: validationData, error: validationError } = await supabase
+        .rpc('validate_task_positions');
+
+      if (validationError) {
+        console.warn('[MOVE TASK] Validation error:', validationError);
+      } else if (validationData && validationData.some((col: any) => col.has_duplicates)) {
+        console.warn('[MOVE TASK] Position inconsistencies detected, normalizing...');
+        await supabase.rpc('normalize_task_positions');
+        
+        // Recarregar dados após normalização
+        const { data: freshTasks, error: fetchError } = await supabase
+          .from('tasks')
+          .select('*')
+          .order('column_id')
+          .order('position', { ascending: true });
+
+        if (!fetchError && freshTasks) {
+          setTasks(freshTasks as Task[]);
+        }
+      }
+
     } catch (err: any) {
-      console.error('Error syncing with database:', err);
-      setError(err.message);
+      console.error('[MOVE TASK] Error syncing with database:', err);
+      setError(`Erro ao mover tarefa: ${err.message}`);
       
-      // Revert local state by fetching fresh data
+      // Rollback para o estado original
+      setTasks(originalTasks);
+      
+      // Tentar recarregar dados frescos do banco
       try {
         const { data: freshTasks, error: fetchError } = await supabase
           .from('tasks')
@@ -61,16 +195,14 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
           .order('column_id')
           .order('position', { ascending: true });
 
-        if (fetchError) {
-          console.error('Error fetching fresh data:', fetchError);
-        } else if (freshTasks) {
+        if (!fetchError && freshTasks) {
           setTasks(freshTasks as Task[]);
         }
       } catch (revertError) {
-        console.error('Error reverting state:', revertError);
+        console.error('[MOVE TASK] Error reverting state:', revertError);
       }
     }
-  }, [setTasks, setError]);
+  }, [tasks, setTasks, setError]);
 
   const createTask = useCallback(async (columnId: string, title: string, projectId?: string | null) => {
     try {
@@ -160,31 +292,8 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
     try {
       console.log('[FIX POSITIONS] Starting position normalization...');
       
-      const { data: columns, error: columnsError } = await supabase
-        .from('kanban_columns')
-        .select('id');
-
-      if (columnsError) throw columnsError;
-
-      if (columns) {
-        for (const column of columns) {
-          const { data: columnTasks, error: fetchError } = await supabase
-            .from('tasks')
-            .select('id, position')
-            .eq('column_id', column.id)
-            .order('position', { ascending: true });
-
-          if (fetchError) throw fetchError;
-
-          if (columnTasks && columnTasks.length > 0) {
-            const updates = columnTasks.map((task, index) => 
-              supabase.from('tasks').update({ position: index }).eq('id', task.id)
-            );
-            
-            await Promise.all(updates);
-          }
-        }
-      }
+      const { error } = await supabase.rpc('normalize_task_positions');
+      if (error) throw error;
 
       // Fetch fresh data
       const { data: freshTasks, error: fetchError } = await supabase

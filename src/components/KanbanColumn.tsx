@@ -87,8 +87,10 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
           <div
             ref={provided.innerRef}
             {...provided.droppableProps}
-            className={`space-y-3 min-h-[200px] transition-colors duration-200 ${
-              snapshot.isDraggingOver ? 'bg-blue-50 rounded-xl' : ''
+            className={`space-y-3 min-h-[200px] transition-all duration-200 rounded-xl p-2 ${
+              snapshot.isDraggingOver 
+                ? 'bg-blue-50 border-2 border-blue-300 border-dashed' 
+                : 'border-2 border-transparent'
             }`}
           >
             {/* Tasks - properly sorted by position with fallback */}
@@ -104,6 +106,16 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
               />
             ))}
             {provided.placeholder}
+
+            {/* Visual feedback for drop zone */}
+            {snapshot.isDraggingOver && (
+              <div className="flex items-center justify-center py-4 text-blue-500 text-sm font-medium">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                  Solte aqui para adicionar à {column.title}
+                </div>
+              </div>
+            )}
 
             {/* Add Task Button/Input */}
             <div className="mt-4">

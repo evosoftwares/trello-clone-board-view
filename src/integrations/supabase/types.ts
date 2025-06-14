@@ -277,7 +277,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      normalize_task_positions: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      validate_task_positions: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          column_id: string
+          has_duplicates: boolean
+          max_gap: number
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
