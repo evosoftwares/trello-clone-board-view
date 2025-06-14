@@ -51,16 +51,16 @@ export const useKanbanData = (selectedProjectId?: string | null) => {
     }
   }, [selectedProjectId]);
 
-  // Função completamente nova para gerenciar canal sem race conditions
+  // Simplified channel setup without dependencies that cause re-renders
   const setupRealtimeChannel = useCallback(() => {
-    // Se já existe um canal, remove ele completamente
+    // Clean up existing channel first
     if (channelRef.current) {
       console.log("[KANBAN DATA] Removing existing channel");
       supabase.removeChannel(channelRef.current);
       channelRef.current = null;
     }
 
-    // Create unique channel name
+    // Create unique channel name to avoid conflicts
     const timestamp = Date.now();
     const random = Math.random().toString(36).substring(7);
     const channelName = selectedProjectId
@@ -102,30 +102,33 @@ export const useKanbanData = (selectedProjectId?: string | null) => {
         console.log('Realtime: Task DELETE received', payload.old);
         setTasks(currentTasks => currentTasks.filter(task => task.id !== (payload.old as any).id));
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'kanban_columns' }, () => fetchAllData())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'team_members' }, () => fetchAllData());
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'kanban_columns' }, () => {
+        console.log('Realtime: Columns changed, refetching data');
+        fetchAllData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'team_members' }, () => {
+        console.log('Realtime: Team members changed, refetching data');
+        fetchAllData();
+      });
 
-    // Store reference
+    // Store reference and subscribe
     channelRef.current = channel;
-
-    // Subscribe to channel
+    
     channel.subscribe((status: string) => {
       console.log("[KANBAN DATA] Channel status:", status);
     });
 
     return channel;
-  }, [selectedProjectId, fetchAllData]);
+  }, [selectedProjectId]); // Only depend on selectedProjectId
 
+  // Single effect to handle initialization and project changes
   useEffect(() => {
-    // Prevent multiple initializations
-    if (isInitializedRef.current) {
-      return;
-    }
-
-    console.log("[KANBAN DATA] Initializing hook...");
-    isInitializedRef.current = true;
-
+    console.log("[KANBAN DATA] Hook effect triggered, selectedProjectId:", selectedProjectId);
+    
+    // Fetch data first
     fetchAllData();
+    
+    // Setup realtime channel
     setupRealtimeChannel();
 
     // Cleanup function
@@ -135,18 +138,8 @@ export const useKanbanData = (selectedProjectId?: string | null) => {
         supabase.removeChannel(channelRef.current);
         channelRef.current = null;
       }
-      isInitializedRef.current = false;
     };
-  }, []); // Empty dependency array
-
-  // Separate effect for handling project changes
-  useEffect(() => {
-    if (!isInitializedRef.current) return;
-
-    console.log("[KANBAN DATA] Project changed, updating data and channel...");
-    fetchAllData();
-    setupRealtimeChannel();
-  }, [selectedProjectId, fetchAllData, setupRealtimeChannel]);
+  }, [selectedProjectId]); // Only depend on selectedProjectId
 
   const moveTask = async (taskId: string, newColumnId: string, newPosition: number) => {
     const originalTasks = tasks;
