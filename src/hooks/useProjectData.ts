@@ -32,7 +32,10 @@ export const useProjectData = () => {
       .channel('projects-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, fetchProjects)
       .subscribe();
-    return () => supabase.removeChannel(channel);
+    // FIX: cleanup must be synchronous - just call, don't return a promise!
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [fetchProjects]);
 
   const createProject = async (project: Omit<Project, "id" | "created_at" | "updated_at">) => {
@@ -70,4 +73,3 @@ export const useProjectData = () => {
     deleteProject,
   };
 };
-
