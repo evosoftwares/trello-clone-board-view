@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useRef, useEffect, ReactNode, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { RealtimeChannel } from '@supabase/supabase-js';
@@ -37,38 +36,32 @@ export const RealtimeProvider: React.FC<RealtimeProviderProps> = ({ children }) 
   const channelRef = useRef<RealtimeChannel | null>(null);
   const callbacksRef = useRef<any>(null);
   const currentProjectRef = useRef<string | null>(null);
-  const cleanupTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const cleanupInProgress = useRef(false);
 
   const unsubscribeFromProject = useCallback(() => {
-    console.log('[REALTIME] Starting cleanup');
-    
-    // Clear any pending cleanup
-    if (cleanupTimeoutRef.current) {
-      clearTimeout(cleanupTimeoutRef.current);
-      cleanupTimeoutRef.current = null;
+    if (cleanupInProgress.current) {
+      // Já limpando, não faz nada
+      return;
     }
-    
+    cleanupInProgress.current = true;
+
     if (channelRef.current) {
       try {
-        // Remove the channel immediately and synchronously
         const channel = channelRef.current;
         channelRef.current = null;
-        
-        // Unsubscribe from the channel
+        // Remove listeners do canal
         channel.unsubscribe();
-        
-        // Remove from supabase client
         supabase.removeChannel(channel);
-        
         console.log('[REALTIME] Channel cleanup completed');
       } catch (error) {
         console.error('[REALTIME] Error during cleanup:', error);
       }
     }
-    
+
     setIsConnected(false);
     currentProjectRef.current = null;
     callbacksRef.current = null;
+    cleanupInProgress.current = false;
   }, []);
 
   const subscribeToProject = useCallback((
@@ -80,78 +73,61 @@ export const RealtimeProvider: React.FC<RealtimeProviderProps> = ({ children }) 
       onDataChange: () => void;
     }
   ) => {
-    // If same project, just update callbacks
+    // Se projeto não mudou, só atualiza callbacks
     if (currentProjectRef.current === projectId && channelRef.current && isConnected) {
-      console.log('[REALTIME] Same project, updating callbacks only');
       callbacksRef.current = callbacks;
+      console.log('[REALTIME] Same project, callbacks updated only');
       return;
     }
-
-    // Clean up existing subscription first
+    // Cleanup ANTES de criar qualquer outro canal
     unsubscribeFromProject();
-    
-    // Wait a bit to ensure cleanup is complete
-    cleanupTimeoutRef.current = setTimeout(() => {
-      try {
-        // Update refs
-        callbacksRef.current = callbacks;
-        currentProjectRef.current = projectId;
-        
-        const channelName = `kanban-project-${projectId || 'global'}`;
-        console.log(`[REALTIME] Creating channel: ${channelName}`);
 
-        const newChannel = supabase.channel(channelName);
-        channelRef.current = newChannel;
+    // Atualiza refs
+    callbacksRef.current = callbacks;
+    currentProjectRef.current = projectId;
 
-        newChannel
-          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tasks' }, (payload) => {
-            console.log('[REALTIME] Task INSERT:', payload.new);
-            const newTask = payload.new as Task;
-            if (!currentProjectRef.current || newTask.project_id === currentProjectRef.current) {
-              callbacksRef.current?.onTaskInsert(newTask);
-            }
-          })
-          .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'tasks' }, (payload) => {
-            console.log('[REALTIME] Task UPDATE:', payload.new);
-            callbacksRef.current?.onTaskUpdate(payload.new as Task);
-          })
-          .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'tasks' }, (payload) => {
-            console.log('[REALTIME] Task DELETE:', payload.old);
-            callbacksRef.current?.onTaskDelete((payload.old as any).id);
-          })
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'kanban_columns' }, () => {
-            console.log('[REALTIME] Columns changed');
-            callbacksRef.current?.onDataChange();
-          })
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'team_members' }, () => {
-            console.log('[REALTIME] Team members changed');
-            callbacksRef.current?.onDataChange();
-          })
-          .subscribe((status) => {
-            console.log(`[REALTIME] Channel ${channelName} status:`, status);
-            
-            if (status === 'SUBSCRIBED') {
-              setIsConnected(true);
-              console.log(`[REALTIME] Successfully subscribed to ${channelName}`);
-            } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-              console.error(`[REALTIME] Channel subscription failed: ${status}`);
-              setIsConnected(false);
-            }
-          });
+    // Sempre crie um novo canal!
+    const channelName = `kanban-project-${projectId || 'global'}-${Date.now()}`;
+    console.log(`[REALTIME] Creating channel: ${channelName}`);
+    const newChannel = supabase.channel(channelName);
+    channelRef.current = newChannel;
 
-      } catch (error) {
-        console.error('[REALTIME] Error during subscription:', error);
-        setIsConnected(false);
-      }
-    }, 100); // Small delay to ensure cleanup completes
+    newChannel
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tasks' }, (payload) => {
+        const newTask = payload.new as Task;
+        if (!currentProjectRef.current || newTask.project_id === currentProjectRef.current) {
+          callbacksRef.current?.onTaskInsert(newTask);
+        }
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'tasks' }, (payload) => {
+        callbacksRef.current?.onTaskUpdate(payload.new as Task);
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'tasks' }, (payload) => {
+        callbacksRef.current?.onTaskDelete((payload.old as any).id);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'kanban_columns' }, () => {
+        callbacksRef.current?.onDataChange();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'team_members' }, () => {
+        callbacksRef.current?.onDataChange();
+      })
+      .subscribe((status) => {
+        console.log(`[REALTIME] Channel ${channelName} status:`, status);
+        if (status === 'SUBSCRIBED') {
+          setIsConnected(true);
+          console.log(`[REALTIME] Successfully subscribed to ${channelName}`);
+        } else if (
+          status === 'CHANNEL_ERROR' ||
+          status === 'TIMED_OUT' ||
+          status === 'CLOSED'
+        ) {
+          setIsConnected(false);
+        }
+      });
   }, [unsubscribeFromProject, isConnected]);
 
   useEffect(() => {
     return () => {
-      console.log("[REALTIME] Provider cleanup");
-      if (cleanupTimeoutRef.current) {
-        clearTimeout(cleanupTimeoutRef.current);
-      }
       unsubscribeFromProject();
     };
   }, [unsubscribeFromProject]);
@@ -161,7 +137,7 @@ export const RealtimeProvider: React.FC<RealtimeProviderProps> = ({ children }) 
       value={{
         subscribeToProject,
         unsubscribeFromProject,
-        isConnected
+        isConnected,
       }}
     >
       {children}
