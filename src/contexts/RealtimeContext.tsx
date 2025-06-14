@@ -33,7 +33,6 @@ interface RealtimeProviderProps {
 
 export const RealtimeProvider: React.FC<RealtimeProviderProps> = ({ children }) => {
   const [isConnected, setIsConnected] = useState(false);
-  const isProcessingRef = useRef(false);
   const channelRef = useRef<RealtimeChannel | null>(null);
   const callbacksRef = useRef<any>(null);
   const currentProjectRef = useRef<string | null>(null);
@@ -42,11 +41,10 @@ export const RealtimeProvider: React.FC<RealtimeProviderProps> = ({ children }) 
     if (channelRef.current) {
       console.log('[REALTIME MANAGER] Unsubscribing from channel', channelRef.current.topic);
       try {
-        // Properly await the unsubscribe and remove operations to prevent race conditions.
-        await channelRef.current.unsubscribe();
+        // removeChannel also handles unsubscribing
         await supabase.removeChannel(channelRef.current);
       } catch (error) {
-        console.error('[REALTIME MANAGER] Error unsubscribing:', error);
+        console.error('[REALTIME MANAGER] Error removing channel:', error);
       } finally {
         channelRef.current = null;
         setIsConnected(false);
@@ -66,27 +64,32 @@ export const RealtimeProvider: React.FC<RealtimeProviderProps> = ({ children }) 
     }
   ) => {
     callbacksRef.current = callbacks;
+    const channelName = `kanban-project-${projectId || 'global'}`;
 
-    if (isProcessingRef.current) {
-      console.log('[REALTIME MANAGER] Already processing, request ignored.');
-      return;
-    }
-    
-    if (currentProjectRef.current === projectId && channelRef.current) {
-      console.log('[REALTIME MANAGER] Already subscribed to this project.');
-      return;
+    // If we're already on the correct channel, do nothing.
+    if (channelRef.current && channelRef.current.topic === `realtime:${channelName}`) {
+        console.log(`[REALTIME MANAGER] Already on channel ${channelName}.`);
+        return;
     }
 
-    isProcessingRef.current = true;
-    console.log('[REALTIME MANAGER] Starting subscription for project:', projectId);
-
+    // Unsubscribe from the previous channel before creating a new one.
     await unsubscribeFromProject();
-
+    
     currentProjectRef.current = projectId;
-    const channelName = `kanban-${projectId || 'all'}-${Date.now()}`;
+    console.log(`[REALTIME MANAGER] Creating channel: ${channelName}`);
     const newChannel = supabase.channel(channelName, {
         config: { broadcast: { ack: true } },
     });
+    
+    // This can happen with fast re-renders. If so, just update our ref and state.
+    if (newChannel.state === 'joined' || newChannel.state === 'joining') {
+        console.log(`[REALTIME MANAGER] Channel is already in state: ${newChannel.state}. Not re-subscribing.`);
+        channelRef.current = newChannel;
+        setIsConnected(true);
+        return;
+    }
+
+    channelRef.current = newChannel;
 
     newChannel
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tasks' }, (payload) => {
@@ -113,8 +116,6 @@ export const RealtimeProvider: React.FC<RealtimeProviderProps> = ({ children }) 
           callbacksRef.current?.onDataChange();
       });
     
-    channelRef.current = newChannel;
-
     newChannel.subscribe((status, err) => {
       if (channelRef.current?.topic !== newChannel.topic) {
         return; // Ignore callbacks from stale channels
@@ -124,17 +125,14 @@ export const RealtimeProvider: React.FC<RealtimeProviderProps> = ({ children }) 
       
       if (status === 'SUBSCRIBED') {
         setIsConnected(true);
-      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-        console.error('[REALTIME MANAGER] Channel error or timeout:', err);
+      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+        console.error('[REALTIME MANAGER] Channel subscription failed or closed:', err);
         setIsConnected(false);
-        unsubscribeFromProject();
-      } else if (status === 'CLOSED') {
-        setIsConnected(false);
+        // Clean up this specific channel if it fails, without causing loops.
+        if (channelRef.current === newChannel) {
+          unsubscribeFromProject();
+        }
       }
-      
-      // Any status received from the subscribe callback means the process has finished.
-      // We can now allow another subscription to happen.
-      isProcessingRef.current = false;
     });
 
   }, [unsubscribeFromProject]);
