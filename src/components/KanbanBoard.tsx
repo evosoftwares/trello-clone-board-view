@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import ReactDOM from 'react-dom';
 import { DragDropContext } from '@hello-pangea/dnd';
@@ -119,6 +120,9 @@ const KanbanBoard = () => {
           title: "Parabéns! 🎉",
           description: `Tarefa "${movedTask.title}" foi concluída!`,
         });
+        
+        // Stop confetti after 3 seconds
+        setTimeout(() => setRunConfetti(false), 3000);
       }
     } catch (err) {
       console.error('Error in drag end:', err);
@@ -127,33 +131,20 @@ const KanbanBoard = () => {
 
   const handleAddTask = async (columnId: string, title: string) => {
     try {
-      // Validation: Project must be selected
-      if (!selectedProjectId) {
-        toast({
-          title: "Projeto Obrigatório",
-          description: "Selecione um projeto antes de criar uma tarefa.",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      // Validation: Check if project still exists
-      const projectExists = projects.find(p => p.id === selectedProjectId);
-      if (!projectExists) {
-        toast({
-          title: "Projeto Inválido",
-          description: "O projeto selecionado não existe mais. Selecione outro projeto.",
-          variant: "destructive"
-        });
-        setSelectedProjectId(null);
-        return;
-      }
-
       await createTask(columnId, title, selectedProjectId);
-      toast({
-        title: "Sucesso",
-        description: `Nova tarefa criada no projeto "${projectExists.name}"!`,
-      });
+      
+      if (selectedProjectId) {
+        const project = projects.find(p => p.id === selectedProjectId);
+        toast({
+          title: "Sucesso",
+          description: `Nova tarefa criada no projeto "${project?.name}"!`,
+        });
+      } else {
+        toast({
+          title: "Sucesso",
+          description: "Nova tarefa criada!",
+        });
+      }
     } catch (err) {
       console.error('Error adding task:', err);
       toast({
@@ -205,6 +196,16 @@ const KanbanBoard = () => {
 
   return (
     <>
+      {/* Confetti */}
+      {runConfetti && (
+        <Confetti
+          width={windowSize.width}
+          height={windowSize.height}
+          recycle={false}
+          numberOfPieces={200}
+        />
+      )}
+
       {/* Refresh e erro sempre visíveis */}
       <div className="fixed top-3 right-3 z-50 flex gap-2">
         <button
@@ -267,7 +268,7 @@ const KanbanBoard = () => {
             <Alert className="mb-6 border-blue-200 bg-blue-50">
               <AlertTriangle className="h-4 w-4 text-blue-600" />
               <AlertDescription className="text-blue-800">
-                <strong>Selecione um projeto</strong> para visualizar e criar tarefas específicas do projeto.
+                <strong>Visualizando todas as tarefas.</strong> Selecione um projeto específico para filtrar as tarefas por projeto.
               </AlertDescription>
             </Alert>
           )}
@@ -316,7 +317,6 @@ const KanbanBoard = () => {
                     projects={projects}
                     onAddTask={handleAddTask}
                     onTaskClick={openTaskModal}
-                    disabled={!selectedProjectId}
                   />
                 ))}
               </div>
