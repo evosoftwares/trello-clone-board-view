@@ -1,4 +1,5 @@
-import { useEffect } from 'react';
+
+import { useEffect, useRef } from 'react';
 import { useRealtimeContext } from '@/contexts/RealtimeContext';
 import { Task } from '@/types/database';
 
@@ -18,27 +19,36 @@ export const useKanbanRealtime = ({
   onDataChange
 }: UseKanbanRealtimeProps) => {
   const { subscribeToProject, unsubscribeFromProject, isConnected } = useRealtimeContext();
+  
+  // Use refs to store callbacks to prevent re-subscriptions
+  const callbacksRef = useRef({
+    onTaskInsert,
+    onTaskUpdate,
+    onTaskDelete,
+    onDataChange
+  });
 
+  // Update callbacks ref when they change
   useEffect(() => {
-    // This effect now only runs when the selectedProjectId changes.
-    // The latest callbacks are passed to subscribeToProject, which uses a ref
-    // to keep them updated without needing them as dependencies here.
-    console.log('[KANBAN REALTIME] Calling subscribeToProject for project:', selectedProjectId);
-    subscribeToProject(selectedProjectId, {
+    callbacksRef.current = {
       onTaskInsert,
       onTaskUpdate,
       onTaskDelete,
       onDataChange
-    });
-  }, [selectedProjectId, subscribeToProject]);
-
-  useEffect(() => {
-    // This effect handles cleanup when the component unmounts for good.
-    return () => {
-      console.log('[KANBAN REALTIME] Hook unmounting, calling unsubscribeFromProject.');
-      unsubscribeFromProject();
     };
-  }, [unsubscribeFromProject]);
+  });
+
+  // Only subscribe when project ID changes
+  useEffect(() => {
+    console.log('[KANBAN REALTIME] Project changed to:', selectedProjectId);
+    
+    subscribeToProject(selectedProjectId, callbacksRef.current);
+    
+    // Don't unsubscribe on unmount, let the context manage it
+    return () => {
+      console.log('[KANBAN REALTIME] Effect cleanup');
+    };
+  }, [selectedProjectId, subscribeToProject]);
 
   return {
     isSubscribed: isConnected
