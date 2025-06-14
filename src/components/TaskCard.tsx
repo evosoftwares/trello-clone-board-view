@@ -46,8 +46,8 @@ const TaskCard: React.FC<TaskCardProps> = ({
           {...provided.draggableProps}
           {...provided.dragHandleProps}
           onClick={() => onTaskClick(task)}
-          className={`bg-white rounded-2xl p-4 shadow-sm border border-gray-100 cursor-pointer active:cursor-grabbing hover:shadow-md transition-all duration-200 ${
-            snapshot.isDragging ? 'shadow-lg rotate-2 scale-105' : ''
+          className={`bg-white rounded-2xl p-4 shadow-sm border border-gray-100 cursor-pointer active:cursor-grabbing hover:shadow-md ${
+            snapshot.isDragging ? 'shadow-lg' : ''
           }`}
         >
           {/* Header com ícones e projeto */}

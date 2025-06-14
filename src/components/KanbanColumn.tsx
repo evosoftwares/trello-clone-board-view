@@ -81,13 +81,13 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
         </div>
       </div>
 
-      {/* Droppable Area */}
+      {/* Droppable Area - Sem animações */}
       <Droppable droppableId={column.id}>
         {(provided, snapshot) => (
           <div
             ref={provided.innerRef}
             {...provided.droppableProps}
-            className={`space-y-3 min-h-[200px] transition-all duration-200 rounded-xl p-2 ${
+            className={`space-y-3 min-h-[200px] rounded-xl p-2 ${
               snapshot.isDraggingOver 
                 ? 'bg-blue-50 border-2 border-blue-300 border-dashed' 
                 : 'border-2 border-transparent'
@@ -107,11 +107,11 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
             ))}
             {provided.placeholder}
 
-            {/* Visual feedback for drop zone */}
+            {/* Visual feedback for drop zone - Sem animação */}
             {snapshot.isDraggingOver && (
               <div className="flex items-center justify-center py-4 text-blue-500 text-sm font-medium">
                 <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                   Solte aqui para adicionar à {column.title}
                 </div>
               </div>
@@ -138,7 +138,7 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
                   <div className="flex gap-2 mt-3">
                     <button
                       onClick={handleAddTask}
-                      className="bg-blue-500 text-white px-3 py-1 rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors"
+                      className="bg-blue-500 text-white px-3 py-1 rounded-lg text-sm font-medium hover:bg-blue-600"
                     >
                       Adicionar
                     </button>
@@ -147,7 +147,7 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
                         setIsAdding(false);
                         setNewTaskTitle('');
                       }}
-                      className="bg-gray-200 text-gray-600 px-3 py-1 rounded-lg text-sm font-medium hover:bg-gray-300 transition-colors"
+                      className="bg-gray-200 text-gray-600 px-3 py-1 rounded-lg text-sm font-medium hover:bg-gray-300"
                     >
                       Cancelar
                     </button>
@@ -156,9 +156,9 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
               ) : (
                 <button
                   onClick={() => setIsAdding(true)}
-                  className="w-full border-2 border-dashed rounded-2xl p-4 flex items-center justify-center gap-2 text-sm font-medium transition-all duration-200 bg-white/50 hover:bg-white/80 border-gray-300 hover:border-blue-300 text-gray-500 hover:text-blue-500 group"
+                  className="w-full border-2 border-dashed rounded-2xl p-4 flex items-center justify-center gap-2 text-sm font-medium bg-white/50 hover:bg-white/80 border-gray-300 hover:border-blue-300 text-gray-500 hover:text-blue-500 group"
                 >
-                  <Plus className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                  <Plus className="w-4 h-4" />
                   <span>Adicionar tarefa</span>
                 </button>
               )}
