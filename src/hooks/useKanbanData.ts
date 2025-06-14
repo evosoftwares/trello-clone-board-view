@@ -52,20 +52,23 @@ export const useKanbanData = (selectedProjectId?: string | null) => {
   useEffect(() => {
     fetchAllData();
 
-    // Clean up any existing channel first
+    // LIMPEZA SEGURA: Unsubscribe de qualquer canal antigo ANTES DE CRIAR O NOVO
     if (channelRef.current) {
-      console.log('Cleaning up existing channel');
-      channelRef.current.unsubscribe();
+      try {
+        console.log('[KANBAN DATA] Limpando canal antigo...');
+        channelRef.current.unsubscribe();
+      } catch (e) {
+        console.warn('[KANBAN DATA] Erro ao desinscrever canal antigo:', e);
+      }
       channelRef.current = null;
     }
 
-    // Create a unique channel name with timestamp to avoid conflicts
     const timestamp = Date.now();
-    const channelName = selectedProjectId 
-      ? `kanban-${selectedProjectId}-${timestamp}` 
+    const channelName = selectedProjectId
+      ? `kanban-${selectedProjectId}-${timestamp}`
       : `kanban-all-${timestamp}`;
 
-    console.log('Creating new channel:', channelName);
+    console.log('[KANBAN DATA] Criando novo canal:', channelName);
 
     const channel = supabase
       .channel(channelName)
@@ -109,18 +112,26 @@ export const useKanbanData = (selectedProjectId?: string | null) => {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'kanban_columns' }, () => fetchAllData())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'team_members' }, () => fetchAllData());
 
-    // Store the channel reference
     channelRef.current = channel;
 
-    // Subscribe to the channel
-    channel.subscribe((status) => {
-      console.log('Channel subscription status:', status);
+    // Importante: subscrever apenas se ainda não estiver subscribed
+    let subscribed = false;
+    channel.subscribe((status: string) => {
+      console.log('[KANBAN DATA] Estado do subscribe:', status);
+      if (status === "SUBSCRIBED") {
+        subscribed = true;
+      }
     });
 
+    // Cleanup na desmontagem/mudança de projeto
     return () => {
-      console.log('Cleanup: Unsubscribing from channel:', channelName);
       if (channelRef.current) {
-        channelRef.current.unsubscribe();
+        try {
+          console.log('[KANBAN DATA] Cleanup: Unsubscribing do canal:', channelName);
+          channelRef.current.unsubscribe();
+        } catch (e) {
+          console.warn('[KANBAN DATA] Erro no unsubscribe:', e);
+        }
         channelRef.current = null;
       }
     };
