@@ -20,6 +20,7 @@ export type Database = {
           id: string
           new_data: Json | null
           old_data: Json | null
+          user_id: string | null
         }
         Insert: {
           action_type: string
@@ -31,6 +32,7 @@ export type Database = {
           id?: string
           new_data?: Json | null
           old_data?: Json | null
+          user_id?: string | null
         }
         Update: {
           action_type?: string
@@ -42,8 +44,17 @@ export type Database = {
           id?: string
           new_data?: Json | null
           old_data?: Json | null
+          user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "activity_log_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       function_points_history: {
         Row: {
@@ -112,6 +123,39 @@ export type Database = {
           id?: string
           position?: number
           title?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar: string | null
+          created_at: string | null
+          email: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          role: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          avatar?: string | null
+          created_at?: string | null
+          email?: string | null
+          id: string
+          is_active?: boolean | null
+          name: string
+          role?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          avatar?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          role?: string | null
           updated_at?: string | null
         }
         Relationships: []
@@ -259,6 +303,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "tasks_assignee_fkey"
+            columns: ["assignee"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "tasks_column_id_fkey"
             columns: ["column_id"]

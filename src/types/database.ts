@@ -1,4 +1,3 @@
-
 export interface KanbanColumn {
   id: string;
   title: string;
@@ -22,13 +21,24 @@ export interface Project {
   updated_at: string;
 }
 
+export interface Profile {
+  id: string;
+  name: string;
+  email?: string;
+  avatar?: string;
+  role: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Task {
   id: string;
   title: string;
   description?: string;
   column_id: string;
   position: number;
-  assignee?: string | null;
+  assignee?: string | null; // Agora é UUID referenciando profiles
   function_points: number;
   complexity: 'low' | 'medium' | 'high';
   estimated_hours?: number;
@@ -82,6 +92,7 @@ export interface ActivityLog {
   old_data?: any;
   new_data?: any;
   changed_by?: string;
+  user_id?: string;
   context?: any;
   created_at: string;
 }
