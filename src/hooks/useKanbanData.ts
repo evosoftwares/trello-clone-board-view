@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { KanbanColumn, Task, TeamMember, Tag, TaskTag } from '@/types/database';
@@ -12,7 +11,7 @@ export const useKanbanData = (selectedProjectId?: string | null) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const channelRef = useRef<any>(null);
-  const isSubscribedRef = useRef(false);
+  const isInitializedRef = useRef(false);
 
   const fetchAllData = useCallback(async () => {
     try {
@@ -52,35 +51,25 @@ export const useKanbanData = (selectedProjectId?: string | null) => {
     }
   }, [selectedProjectId]);
 
-  // Função para limpar canal de forma segura
-  const cleanupChannel = useCallback(() => {
-    if (channelRef.current && isSubscribedRef.current) {
-      try {
-        console.log("[KANBAN DATA] Cleaning up channel...");
-        channelRef.current.unsubscribe();
-        isSubscribedRef.current = false;
-      } catch (e) {
-        console.warn("[KANBAN DATA] Error cleaning up channel:", e);
-      }
+  // Função completamente nova para gerenciar canal sem race conditions
+  const setupRealtimeChannel = useCallback(() => {
+    // Se já existe um canal, remove ele completamente
+    if (channelRef.current) {
+      console.log("[KANBAN DATA] Removing existing channel");
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
     }
-    channelRef.current = null;
-  }, []);
-
-  useEffect(() => {
-    fetchAllData();
-
-    // Cleanup any existing channel first
-    cleanupChannel();
 
     // Create unique channel name
     const timestamp = Date.now();
+    const random = Math.random().toString(36).substring(7);
     const channelName = selectedProjectId
-      ? `kanban-${selectedProjectId}-${timestamp}`
-      : `kanban-all-${timestamp}`;
+      ? `kanban-${selectedProjectId}-${timestamp}-${random}`
+      : `kanban-all-${timestamp}-${random}`;
 
-    console.log("[KANBAN DATA] Creating channel:", channelName);
+    console.log("[KANBAN DATA] Creating new channel:", channelName);
 
-    // Create new channel
+    // Create and configure new channel
     const channel = supabase
       .channel(channelName)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tasks' }, (payload) => {
@@ -116,25 +105,48 @@ export const useKanbanData = (selectedProjectId?: string | null) => {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'kanban_columns' }, () => fetchAllData())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'team_members' }, () => fetchAllData());
 
+    // Store reference
     channelRef.current = channel;
 
-    // Subscribe only if not already subscribed
-    if (!isSubscribedRef.current) {
-      channel.subscribe((status: string) => {
-        console.log("[KANBAN DATA] Channel status:", status);
-        if (status === "SUBSCRIBED") {
-          isSubscribedRef.current = true;
-        } else if (status === "CLOSED") {
-          isSubscribedRef.current = false;
-        }
-      });
+    // Subscribe to channel
+    channel.subscribe((status: string) => {
+      console.log("[KANBAN DATA] Channel status:", status);
+    });
+
+    return channel;
+  }, [selectedProjectId, fetchAllData]);
+
+  useEffect(() => {
+    // Prevent multiple initializations
+    if (isInitializedRef.current) {
+      return;
     }
+
+    console.log("[KANBAN DATA] Initializing hook...");
+    isInitializedRef.current = true;
+
+    fetchAllData();
+    setupRealtimeChannel();
 
     // Cleanup function
     return () => {
-      cleanupChannel();
+      console.log("[KANBAN DATA] Cleaning up...");
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+      isInitializedRef.current = false;
     };
-  }, [selectedProjectId]); // Removido fetchAllData das dependências
+  }, []); // Empty dependency array
+
+  // Separate effect for handling project changes
+  useEffect(() => {
+    if (!isInitializedRef.current) return;
+
+    console.log("[KANBAN DATA] Project changed, updating data and channel...");
+    fetchAllData();
+    setupRealtimeChannel();
+  }, [selectedProjectId, fetchAllData, setupRealtimeChannel]);
 
   const moveTask = async (taskId: string, newColumnId: string, newPosition: number) => {
     const originalTasks = tasks;
