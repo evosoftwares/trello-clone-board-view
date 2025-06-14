@@ -52,13 +52,14 @@ export const useKanbanData = (selectedProjectId?: string | null) => {
   useEffect(() => {
     fetchAllData();
 
-    // LIMPEZA SEGURA: Unsubscribe de qualquer canal antigo ANTES DE CRIAR O NOVO
+    // Always cleanup before creating a new channel
     if (channelRef.current) {
       try {
-        console.log('[KANBAN DATA] Limpando canal antigo...');
+        console.log("[KANBAN DATA] Cleaning up previous channel...");
+        // Unsubscribe from previous channel if exists
         channelRef.current.unsubscribe();
       } catch (e) {
-        console.warn('[KANBAN DATA] Erro ao desinscrever canal antigo:', e);
+        console.warn("[KANBAN DATA] Error on previous channel unsubscribe:", e);
       }
       channelRef.current = null;
     }
@@ -68,15 +69,14 @@ export const useKanbanData = (selectedProjectId?: string | null) => {
       ? `kanban-${selectedProjectId}-${timestamp}`
       : `kanban-all-${timestamp}`;
 
-    console.log('[KANBAN DATA] Criando novo canal:', channelName);
+    console.log("[KANBAN DATA] Creating new channel:", channelName);
 
+    // Create a new channel
     const channel = supabase
       .channel(channelName)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tasks' }, (payload) => {
         console.log('Realtime: Task INSERT received', payload.new);
         const newTask = payload.new as Task;
-        
-        // Only add task if it matches current project filter
         if (!selectedProjectId || newTask.project_id === selectedProjectId) {
           setTasks(currentTasks => {
             if (currentTasks.some(t => t.id === newTask.id)) return currentTasks;
@@ -87,21 +87,16 @@ export const useKanbanData = (selectedProjectId?: string | null) => {
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'tasks' }, (payload) => {
         console.log('Realtime: Task UPDATE received', payload.new);
         const updatedTask = payload.new as Task;
-        
         setTasks(currentTasks => {
-          // Remove task if it no longer matches filter
           if (selectedProjectId && updatedTask.project_id !== selectedProjectId) {
             return currentTasks.filter(task => task.id !== updatedTask.id);
           }
-          
-          // Update or add task if it matches filter
           const taskExists = currentTasks.some(task => task.id === updatedTask.id);
           if (taskExists) {
             return currentTasks.map(task => (task.id === updatedTask.id ? updatedTask : task));
           } else if (!selectedProjectId || updatedTask.project_id === selectedProjectId) {
             return [...currentTasks, updatedTask];
           }
-          
           return currentTasks;
         });
       })
@@ -114,28 +109,28 @@ export const useKanbanData = (selectedProjectId?: string | null) => {
 
     channelRef.current = channel;
 
-    // Importante: subscrever apenas se ainda não estiver subscribed
+    // Subscribe to the new channel ONLY ONCE per instance
     let subscribed = false;
-    channel.subscribe((status: string) => {
-      console.log('[KANBAN DATA] Estado do subscribe:', status);
+    const subscription = channel.subscribe((status: string) => {
+      console.log("[KANBAN DATA] Channel status:", status);
       if (status === "SUBSCRIBED") {
         subscribed = true;
       }
     });
 
-    // Cleanup na desmontagem/mudança de projeto
+    // Cleanup when effect unmounts or dependencies change
     return () => {
       if (channelRef.current) {
         try {
-          console.log('[KANBAN DATA] Cleanup: Unsubscribing do canal:', channelName);
+          console.log("[KANBAN DATA] Cleanup: unsubscribing from", channelName);
           channelRef.current.unsubscribe();
         } catch (e) {
-          console.warn('[KANBAN DATA] Erro no unsubscribe:', e);
+          console.warn("[KANBAN DATA] Error on unsubscribe:", e);
         }
         channelRef.current = null;
       }
     };
-  }, [selectedProjectId]);
+  }, [selectedProjectId]);  // no fetchAllData in dependencies
 
   const moveTask = async (taskId: string, newColumnId: string, newPosition: number) => {
     const originalTasks = tasks;
