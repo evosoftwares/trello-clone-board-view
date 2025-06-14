@@ -2,6 +2,7 @@
 import React from 'react';
 import { Draggable } from '@hello-pangea/dnd';
 import { Task, Tag, TaskTag } from '@/types/database';
+import { useKanban } from './KanbanBoard';
 
 interface TaskCardProps {
   task: Task;
@@ -13,14 +14,14 @@ interface TaskCardProps {
 const TaskCard: React.FC<TaskCardProps> = ({ 
   task, 
   index, 
-  tags = [], // Default to empty array
-  taskTags = [] // Default to empty array
+  tags = [],
+  taskTags = []
 }) => {
-  // Get tags for this task with null safety
+  const { openTaskModal } = useKanban();
+
   const taskTagIds = (taskTags || []).filter(tt => tt.task_id === task.id).map(tt => tt.tag_id);
   const taskTagsData = (tags || []).filter(tag => taskTagIds.includes(tag.id));
 
-  // Get complexity color for function points badge
   const getComplexityColor = (complexity: string) => {
     switch (complexity) {
       case 'low':
@@ -41,7 +42,8 @@ const TaskCard: React.FC<TaskCardProps> = ({
           ref={provided.innerRef}
           {...provided.draggableProps}
           {...provided.dragHandleProps}
-          className={`bg-white rounded-2xl p-4 shadow-sm border border-gray-100 cursor-grab active:cursor-grabbing hover:shadow-md transition-all duration-200 ${
+          onClick={() => openTaskModal(task)}
+          className={`bg-white rounded-2xl p-4 shadow-sm border border-gray-100 cursor-pointer active:cursor-grabbing hover:shadow-md transition-all duration-200 ${
             snapshot.isDragging ? 'shadow-lg rotate-2 scale-105' : ''
           }`}
         >

@@ -1,12 +1,185 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, createContext, useContext } from 'react';
 import ReactDOM from 'react-dom';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
 import { DragDropContext } from '@hello-pangea/dnd';
+import { Trash } from 'lucide-react';
+
 import TeamMember from './TeamMember';
 import KanbanColumn from './KanbanColumn';
 import Confetti from 'react-confetti';
 import { useKanbanData } from '@/hooks/useKanbanData';
 import { useToast } from '@/hooks/use-toast';
+import { Task, TeamMember as TeamMemberType, Tag, TaskTag } from '@/types/database';
 
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '@/components/ui/dialog';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Button } from '@/components/ui/button';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+
+// --- Kanban Context ---
+// Due to project constraints, the context and modal are defined here.
+interface KanbanContextType {
+  openTaskModal: (task: Task) => void;
+  teamMembers: TeamMemberType[];
+  tags: Tag[];
+  taskTags: TaskTag[];
+  updateTask: (taskId: string, updates: Partial<Omit<Task, 'id'>>) => Promise<void>;
+  deleteTask: (taskId: string) => Promise<void>;
+}
+
+const KanbanContext = createContext<KanbanContextType | undefined>(undefined);
+
+export const useKanban = () => {
+  const context = useContext(KanbanContext);
+  if (!context) throw new Error('useKanban must be used within a KanbanProvider');
+  return context;
+};
+
+// --- Task Detail Modal Component ---
+const taskFormSchema = z.object({
+  title: z.string().min(1, 'Title is required.'),
+  description: z.string().optional(),
+  assignee: z.string().optional(),
+  function_points: z.coerce.number().min(0).optional(),
+  complexity: z.enum(['low', 'medium', 'high']),
+});
+
+interface TaskDetailModalProps {
+  task: Task;
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, isOpen, onClose }) => {
+  const { teamMembers, updateTask, deleteTask } = useKanban();
+  const { toast } = useToast();
+  const [isDeleting, setIsDeleting] = useState(false);
+  
+  const form = useForm<z.infer<typeof taskFormSchema>>({
+    resolver: zodResolver(taskFormSchema),
+    defaultValues: {
+      title: task.title || '',
+      description: task.description || '',
+      assignee: task.assignee || '',
+      function_points: task.function_points || 0,
+      complexity: task.complexity || 'medium',
+    },
+  });
+
+  useEffect(() => {
+    form.reset({
+      title: task.title || '',
+      description: task.description || '',
+      assignee: task.assignee || '',
+      function_points: task.function_points || 0,
+      complexity: task.complexity || 'medium',
+    });
+  }, [task, form]);
+
+  const onSubmit = async (values: z.infer<typeof taskFormSchema>) => {
+    try {
+      await updateTask(task.id, values);
+      toast({ title: 'Success', description: 'Task updated successfully.' });
+      onClose();
+    } catch (error) {
+      toast({ title: 'Error', description: 'Failed to update task.', variant: 'destructive' });
+    }
+  };
+
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    try {
+      await deleteTask(task.id);
+      toast({ title: 'Success', description: 'Task deleted.' });
+      onClose();
+    } catch (error) {
+      toast({ title: 'Error', description: 'Failed to delete task.', variant: 'destructive' });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-[600px] grid-rows-[auto_1fr_auto] max-h-[90vh]">
+        <DialogHeader>
+          <DialogTitle>Edit Task</DialogTitle>
+        </DialogHeader>
+        <div className="overflow-y-auto pr-6">
+            <Form {...form}>
+              <form id="edit-task-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                <FormField control={form.control} name="title" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Title</FormLabel>
+                    <FormControl><Input {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="description" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Description</FormLabel>
+                    <FormControl><Textarea {...field} rows={4} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="assignee" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Assignee</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl><SelectTrigger><SelectValue placeholder="Select an assignee" /></SelectTrigger></FormControl>
+                      <SelectContent>
+                        <SelectItem value="">Unassigned</SelectItem>
+                        {teamMembers.map(member => (
+                          <SelectItem key={member.id} value={member.name}>{member.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <div className="grid grid-cols-2 gap-4">
+                    <FormField control={form.control} name="function_points" render={({ field }) => (
+                        <FormItem><FormLabel>Function Points</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>
+                    )} />
+                    <FormField control={form.control} name="complexity" render={({ field }) => (
+                        <FormItem><FormLabel>Complexity</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select complexity" /></SelectTrigger></FormControl><SelectContent><SelectItem value="low">Low</SelectItem><SelectItem value="medium">Medium</SelectItem><SelectItem value="high">High</SelectItem></SelectContent></Select><FormMessage /></FormItem>
+                    )} />
+                </div>
+              </form>
+            </Form>
+        </div>
+        <DialogFooter className="pt-4 border-t items-center">
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" className="mr-auto"><Trash className="w-4 h-4 mr-2"/> Delete Task</Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This action cannot be undone. This will permanently delete the task.</AlertDialogDescription></AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDelete} disabled={isDeleting}>
+                    {isDeleting ? 'Deleting...' : 'Delete'}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          <DialogClose asChild><Button type="button" variant="secondary">Cancel</Button></DialogClose>
+          <Button type="submit" form="edit-task-form" disabled={form.formState.isSubmitting}>
+            {form.formState.isSubmitting ? 'Saving...' : 'Save Changes'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+
+// --- Main Kanban Board Component ---
 const KanbanBoard = () => {
   const { 
     columns, 
@@ -17,7 +190,9 @@ const KanbanBoard = () => {
     loading, 
     error, 
     moveTask, 
-    createTask 
+    createTask, 
+    updateTask, 
+    deleteTask 
   } = useKanbanData();
   
   const { toast } = useToast();
@@ -26,6 +201,10 @@ const KanbanBoard = () => {
     width: typeof window !== 'undefined' ? window.innerWidth : 0,
     height: typeof window !== 'undefined' ? window.innerHeight : 0,
   });
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+
+  const openTaskModal = (task: Task) => setSelectedTask(task);
+  const closeTaskModal = () => setSelectedTask(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -119,8 +298,12 @@ const KanbanBoard = () => {
     );
   }
 
+  const contextValue = {
+    openTaskModal, teamMembers, tags, taskTags, updateTask, deleteTask
+  };
+
   return (
-    <>
+    <KanbanContext.Provider value={contextValue}>
       {runConfetti && typeof document !== 'undefined' && ReactDOM.createPortal(
         <div style={{
           position: 'fixed',
@@ -181,7 +364,14 @@ const KanbanBoard = () => {
           </DragDropContext>
         </div>
       </div>
-    </>
+      {selectedTask && (
+        <TaskDetailModal 
+          task={selectedTask}
+          isOpen={!!selectedTask}
+          onClose={closeTaskModal}
+        />
+      )}
+    </KanbanContext.Provider>
   );
 };
 

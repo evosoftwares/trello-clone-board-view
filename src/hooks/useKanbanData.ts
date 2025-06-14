@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { KanbanColumn, Task, TeamMember, Tag, TaskTag } from '@/types/database';
@@ -128,6 +127,56 @@ export const useKanbanData = () => {
     }
   };
 
+  const updateTask = async (taskId: string, updates: Partial<Omit<Task, 'id' | 'created_at' | 'updated_at'>>) => {
+    const originalTasks = tasks;
+    
+    const updatedTasks = tasks.map(task => 
+      task.id === taskId ? { ...task, ...updates } : task
+    );
+    setTasks(updatedTasks);
+
+    try {
+      const { data, error } = await supabase
+        .from('tasks')
+        .update(updates)
+        .eq('id', taskId)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setTasks(currentTasks => 
+        currentTasks.map(task => (task.id === data.id ? data as Task : task))
+      );
+    } catch (err: any) {
+      console.error('Error updating task:', err);
+      setError(err.message);
+      setTasks(originalTasks);
+      throw err;
+    }
+  };
+
+  const deleteTask = async (taskId: string) => {
+    const originalTasks = tasks;
+    
+    const updatedTasks = tasks.filter(task => task.id !== taskId);
+    setTasks(updatedTasks);
+
+    try {
+      const { error } = await supabase
+        .from('tasks')
+        .delete()
+        .eq('id', taskId);
+
+      if (error) throw error;
+    } catch (err: any) {
+      console.error('Error deleting task:', err);
+      setError(err.message);
+      setTasks(originalTasks);
+      throw err;
+    }
+  };
+
   return {
     columns,
     tasks,
@@ -138,7 +187,8 @@ export const useKanbanData = () => {
     error,
     moveTask,
     createTask,
+    updateTask,
+    deleteTask,
     refreshData: fetchAllData
   };
 };
-
