@@ -55,12 +55,9 @@ const TaskCard: React.FC<TaskCardProps> = ({
             {/* Status Images */}
             {task.status_image_filenames && task.status_image_filenames.length > 0 ? (
               <div className="flex flex-wrap gap-2 items-center">
-                {task.status_image_filenames.map((imageName,
-
-
-) => (
+                {task.status_image_filenames.map((imageName, index) => (
                   <img
-                    key={idx}
+                    key={index}
                     src={`/imagens/${imageName}`}
                     alt={`Status: ${imageName}`}
                     className="w-5 h-5 rounded object-contain"
