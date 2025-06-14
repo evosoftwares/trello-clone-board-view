@@ -11,7 +11,6 @@ export const useKanbanData = (selectedProjectId?: string | null) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const channelRef = useRef<any>(null);
-  const isInitializedRef = useRef(false);
 
   const fetchAllData = useCallback(async () => {
     try {
@@ -51,7 +50,12 @@ export const useKanbanData = (selectedProjectId?: string | null) => {
     }
   }, [selectedProjectId]);
 
-  // Simplified channel setup without dependencies that cause re-renders
+  // Create a stable refresh function that doesn't cause re-renders
+  const refreshData = useCallback(() => {
+    fetchAllData();
+  }, [fetchAllData]);
+
+  // Channel setup without fetchAllData dependency
   const setupRealtimeChannel = useCallback(() => {
     // Clean up existing channel first
     if (channelRef.current) {
@@ -104,11 +108,11 @@ export const useKanbanData = (selectedProjectId?: string | null) => {
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'kanban_columns' }, () => {
         console.log('Realtime: Columns changed, refetching data');
-        fetchAllData();
+        refreshData();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'team_members' }, () => {
         console.log('Realtime: Team members changed, refetching data');
-        fetchAllData();
+        refreshData();
       });
 
     // Store reference and subscribe
@@ -119,7 +123,7 @@ export const useKanbanData = (selectedProjectId?: string | null) => {
     });
 
     return channel;
-  }, [selectedProjectId]); // Only depend on selectedProjectId
+  }, [selectedProjectId, refreshData]);
 
   // Single effect to handle initialization and project changes
   useEffect(() => {
@@ -139,7 +143,7 @@ export const useKanbanData = (selectedProjectId?: string | null) => {
         channelRef.current = null;
       }
     };
-  }, [selectedProjectId]); // Only depend on selectedProjectId
+  }, [selectedProjectId, fetchAllData, setupRealtimeChannel]);
 
   const moveTask = async (taskId: string, newColumnId: string, newPosition: number) => {
     const originalTasks = tasks;
