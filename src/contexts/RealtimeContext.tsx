@@ -34,7 +34,7 @@ interface RealtimeProviderProps {
 
 export const RealtimeProvider: React.FC<RealtimeProviderProps> = ({ children }) => {
   const [isConnected, setIsConnected] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
+  const isProcessingRef = useRef(false);
   const channelRef = useRef<RealtimeChannel | null>(null);
   const callbacksRef = useRef<any>(null);
   const currentProjectRef = useRef<string | null>(null);
@@ -43,8 +43,10 @@ export const RealtimeProvider: React.FC<RealtimeProviderProps> = ({ children }) 
     if (channelRef.current) {
       console.log('[REALTIME MANAGER] Unsubscribing from channel', channelRef.current.topic);
       try {
-        await channelRef.current.unsubscribe();
-        await supabase.removeChannel(channelRef.current);
+        // We don't wait for unsubscribe to avoid race conditions on quick changes.
+        // Supabase client handles channel cleanup.
+        channelRef.current.unsubscribe();
+        supabase.removeChannel(channelRef.current);
       } catch (error) {
         console.error('[REALTIME MANAGER] Error unsubscribing:', error);
       } finally {
@@ -67,7 +69,7 @@ export const RealtimeProvider: React.FC<RealtimeProviderProps> = ({ children }) 
   ) => {
     callbacksRef.current = callbacks;
 
-    if (isProcessing) {
+    if (isProcessingRef.current) {
       console.log('[REALTIME MANAGER] Already processing, request ignored.');
       return;
     }
@@ -77,7 +79,7 @@ export const RealtimeProvider: React.FC<RealtimeProviderProps> = ({ children }) 
       return;
     }
 
-    setIsProcessing(true);
+    isProcessingRef.current = true;
     console.log('[REALTIME MANAGER] Starting subscription for project:', projectId);
 
     await unsubscribeFromProject();
@@ -133,11 +135,11 @@ export const RealtimeProvider: React.FC<RealtimeProviderProps> = ({ children }) 
       }
       
       if(status !== 'SUBSCRIBING'){
-        setIsProcessing(false);
+        isProcessingRef.current = false;
       }
     });
 
-  }, [isProcessing, unsubscribeFromProject]);
+  }, [unsubscribeFromProject]);
 
   useEffect(() => {
     return () => {
