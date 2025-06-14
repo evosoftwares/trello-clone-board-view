@@ -24,30 +24,27 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
       sameColumn: isMovingToSameColumn
     });
 
-    // Step 1: Update local state first
+    // Step 1: Update local state first (optimistic update)
     setTasks(currentTasks => {
-      const updatedTasks = [...currentTasks];
+      const tasksCopy = [...currentTasks];
       
-      // Remove task from its current position
-      const taskIndex = updatedTasks.findIndex(t => t.id === taskId);
+      // Find and remove the moved task
+      const taskIndex = tasksCopy.findIndex(t => t.id === taskId);
       if (taskIndex === -1) return currentTasks;
       
-      const [draggedTask] = updatedTasks.splice(taskIndex, 1);
-      
-      // Update the task with new column and position
-      const updatedTask = {
-        ...draggedTask,
-        column_id: newColumnId,
-        position: newPosition
-      };
+      const [draggedTask] = tasksCopy.splice(taskIndex, 1);
       
       // Get all tasks in the destination column (excluding the moved task)
-      const destinationColumnTasks = updatedTasks
+      const destinationColumnTasks = tasksCopy
         .filter(t => t.column_id === newColumnId)
         .sort((a, b) => a.position - b.position);
       
       // Insert the task at the correct position
-      destinationColumnTasks.splice(newPosition, 0, updatedTask);
+      destinationColumnTasks.splice(newPosition, 0, {
+        ...draggedTask,
+        column_id: newColumnId,
+        position: newPosition
+      });
       
       // Renumber positions in destination column
       destinationColumnTasks.forEach((task, index) => {
@@ -55,8 +52,9 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
       });
       
       // If moving between different columns, also renumber the source column
+      let sourceColumnTasks: Task[] = [];
       if (!isMovingToSameColumn) {
-        const sourceColumnTasks = updatedTasks
+        sourceColumnTasks = tasksCopy
           .filter(t => t.column_id === movedTask.column_id)
           .sort((a, b) => a.position - b.position);
         
@@ -66,7 +64,7 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
       }
       
       // Rebuild the full tasks array
-      const otherTasks = updatedTasks.filter(t => 
+      const otherTasks = tasksCopy.filter(t => 
         t.column_id !== newColumnId && 
         (!isMovingToSameColumn ? t.column_id !== movedTask.column_id : true)
       );
@@ -74,13 +72,10 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
       const finalTasks = [
         ...otherTasks,
         ...destinationColumnTasks,
-        ...(isMovingToSameColumn ? [] : updatedTasks.filter(t => t.column_id === movedTask.column_id))
+        ...sourceColumnTasks
       ];
       
-      console.log('[MOVE TASK] Local state updated:', {
-        destinationColumnTasks: destinationColumnTasks.map(t => ({ id: t.id, title: t.title, position: t.position }))
-      });
-      
+      console.log('[MOVE TASK] Local state updated');
       return finalTasks;
     });
 
@@ -98,39 +93,11 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
       if (moveError) throw moveError;
 
       // Normalize positions in destination column
-      const { data: destColumnTasks, error: fetchDestError } = await supabase
-        .from('tasks')
-        .select('id, position')
-        .eq('column_id', newColumnId)
-        .order('position', { ascending: true });
-
-      if (fetchDestError) throw fetchDestError;
-
-      if (destColumnTasks && destColumnTasks.length > 0) {
-        const updates = destColumnTasks.map((task, index) => 
-          supabase.from('tasks').update({ position: index }).eq('id', task.id)
-        );
-        
-        await Promise.all(updates);
-      }
+      await normalizeColumnPositions(newColumnId);
 
       // If moving between columns, normalize source column too
       if (!isMovingToSameColumn) {
-        const { data: sourceColumnTasks, error: fetchSourceError } = await supabase
-          .from('tasks')
-          .select('id, position')
-          .eq('column_id', movedTask.column_id)
-          .order('position', { ascending: true });
-
-        if (fetchSourceError) throw fetchSourceError;
-
-        if (sourceColumnTasks && sourceColumnTasks.length > 0) {
-          const sourceUpdates = sourceColumnTasks.map((task, index) => 
-            supabase.from('tasks').update({ position: index }).eq('id', task.id)
-          );
-          
-          await Promise.all(sourceUpdates);
-        }
+        await normalizeColumnPositions(movedTask.column_id);
       }
 
       console.log('[MOVE TASK] Database sync completed successfully');
@@ -140,19 +107,41 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
       setError(err.message);
       
       // Revert local state by fetching fresh data
-      const { data: freshTasks, error: fetchError } = await supabase
-        .from('tasks')
-        .select('*')
-        .order('column_id')
-        .order('position', { ascending: true });
+      try {
+        const { data: freshTasks, error: fetchError } = await supabase
+          .from('tasks')
+          .select('*')
+          .order('column_id')
+          .order('position', { ascending: true });
 
-      if (fetchError) {
-        console.error('Error fetching fresh data:', fetchError);
-      } else {
-        setTasks(freshTasks as Task[]);
+        if (fetchError) {
+          console.error('Error fetching fresh data:', fetchError);
+        } else if (freshTasks) {
+          setTasks(freshTasks as Task[]);
+        }
+      } catch (revertError) {
+        console.error('Error reverting state:', revertError);
       }
     }
   }, [tasks, setTasks, setError]);
+
+  const normalizeColumnPositions = async (columnId: string) => {
+    const { data: columnTasks, error: fetchError } = await supabase
+      .from('tasks')
+      .select('id, position')
+      .eq('column_id', columnId)
+      .order('position', { ascending: true });
+
+    if (fetchError) throw fetchError;
+
+    if (columnTasks && columnTasks.length > 0) {
+      const updates = columnTasks.map((task, index) => 
+        supabase.from('tasks').update({ position: index }).eq('id', task.id)
+      );
+      
+      await Promise.all(updates);
+    }
+  };
 
   const createTask = useCallback(async (columnId: string, title: string, projectId?: string | null) => {
     try {
@@ -248,21 +237,9 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
 
       if (columnsError) throw columnsError;
 
-      for (const column of columns || []) {
-        const { data: columnTasks, error: fetchError } = await supabase
-          .from('tasks')
-          .select('id, position')
-          .eq('column_id', column.id)
-          .order('position', { ascending: true });
-
-        if (fetchError) throw fetchError;
-
-        if (columnTasks && columnTasks.length > 0) {
-          const updates = columnTasks.map((task, index) => 
-            supabase.from('tasks').update({ position: index }).eq('id', task.id)
-          );
-          
-          await Promise.all(updates);
+      if (columns) {
+        for (const column of columns) {
+          await normalizeColumnPositions(column.id);
         }
       }
 
@@ -275,7 +252,9 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
 
       if (fetchError) throw fetchError;
       
-      setTasks(freshTasks as Task[]);
+      if (freshTasks) {
+        setTasks(freshTasks as Task[]);
+      }
       
       console.log('[FIX POSITIONS] Position normalization completed');
     } catch (err: any) {
