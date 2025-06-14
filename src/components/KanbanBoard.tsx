@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, createContext, useContext } from 'react';
 import ReactDOM from 'react-dom';
 import { useForm } from 'react-hook-form';
@@ -55,6 +56,8 @@ interface TaskDetailModalProps {
   onClose: () => void;
 }
 
+const UNASSIGNED_VALUE = 'unassigned-sentinel';
+
 const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, isOpen, onClose }) => {
   const { teamMembers, updateTask, deleteTask } = useKanban();
   const { toast } = useToast();
@@ -65,7 +68,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, isOpen, onClose
     defaultValues: {
       title: task.title || '',
       description: task.description || '',
-      assignee: task.assignee || '',
+      assignee: task.assignee || UNASSIGNED_VALUE,
       function_points: task.function_points || 0,
       complexity: task.complexity || 'medium',
     },
@@ -75,7 +78,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, isOpen, onClose
     form.reset({
       title: task.title || '',
       description: task.description || '',
-      assignee: task.assignee || '',
+      assignee: task.assignee || UNASSIGNED_VALUE,
       function_points: task.function_points || 0,
       complexity: task.complexity || 'medium',
     });
@@ -83,7 +86,11 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, isOpen, onClose
 
   const onSubmit = async (values: z.infer<typeof taskFormSchema>) => {
     try {
-      await updateTask(task.id, values);
+      const updates: Partial<Task> = {
+        ...values,
+        assignee: values.assignee === UNASSIGNED_VALUE ? null : values.assignee,
+      };
+      await updateTask(task.id, updates);
       toast({ title: 'Success', description: 'Task updated successfully.' });
       onClose();
     } catch (error) {
@@ -133,7 +140,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, isOpen, onClose
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl><SelectTrigger><SelectValue placeholder="Select an assignee" /></SelectTrigger></FormControl>
                       <SelectContent>
-                        <SelectItem value="">Unassigned</SelectItem>
+                        <SelectItem value={UNASSIGNED_VALUE}>Unassigned</SelectItem>
                         {teamMembers.map(member => (
                           <SelectItem key={member.id} value={member.name}>{member.name}</SelectItem>
                         ))}

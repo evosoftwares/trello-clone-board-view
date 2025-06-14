@@ -14,9 +14,9 @@ export interface Task {
   description?: string;
   column_id: string;
   position: number;
-  assignee?: string;
+  assignee?: string | null;
   function_points: number;
-  complexity: string; // Changed from union type to string to match Supabase
+  complexity: 'low' | 'medium' | 'high';
   estimated_hours?: number;
   status_image_filenames: string[];
   created_at: string;
