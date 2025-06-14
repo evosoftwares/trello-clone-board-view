@@ -28,13 +28,14 @@ export const useProjectData = () => {
 
   useEffect(() => {
     fetchProjects();
+    
     const channel = supabase
       .channel('projects-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, fetchProjects)
       .subscribe();
-    // FIX: cleanup must be synchronous - just call, don't return a promise!
+    
     return () => {
-      supabase.removeChannel(channel);
+      channel.unsubscribe();
     };
   }, [fetchProjects]);
 
