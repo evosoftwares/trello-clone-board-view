@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { KanbanColumn, Task, TeamMember, Tag, TaskTag } from '@/types/database';
@@ -52,104 +51,113 @@ export const useKanbanData = (selectedProjectId?: string | null) => {
     }
   }, [selectedProjectId]);
 
-  // Use ref to store the latest fetchAllData function to avoid dependency issues
-  const fetchAllDataRef = useRef(fetchAllData);
-  fetchAllDataRef.current = fetchAllData;
-
   // Effect for data fetching and channel setup
   useEffect(() => {
     console.log("[KANBAN DATA] Effect triggered, selectedProjectId:", selectedProjectId);
     
-    // Prevent multiple subscriptions
-    if (isSubscribedRef.current) {
-      console.log("[KANBAN DATA] Already subscribed, skipping");
+    // If already subscribed to a channel, don't create a new one
+    if (isSubscribedRef.current && channelRef.current) {
+      console.log("[KANBAN DATA] Already subscribed, just fetching data");
+      fetchAllData();
       return;
     }
 
-    // Clean up existing channel first
-    if (channelRef.current) {
-      console.log("[KANBAN DATA] Removing existing channel");
-      supabase.removeChannel(channelRef.current);
-      channelRef.current = null;
-      isSubscribedRef.current = false;
-    }
-
-    // Fetch initial data
-    fetchAllDataRef.current();
-
-    // Create unique channel name to avoid conflicts
-    const timestamp = Date.now();
-    const random = Math.random().toString(36).substring(7);
-    const channelName = selectedProjectId
-      ? `kanban-${selectedProjectId}-${timestamp}-${random}`
-      : `kanban-all-${timestamp}-${random}`;
-
-    console.log("[KANBAN DATA] Creating new channel:", channelName);
-
-    // Create and configure new channel
-    const channel = supabase
-      .channel(channelName)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tasks' }, (payload) => {
-        console.log('Realtime: Task INSERT received', payload.new);
-        const newTask = payload.new as Task;
-        if (!selectedProjectId || newTask.project_id === selectedProjectId) {
-          setTasks(currentTasks => {
-            if (currentTasks.some(t => t.id === newTask.id)) return currentTasks;
-            return [...currentTasks, newTask];
-          });
-        }
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'tasks' }, (payload) => {
-        console.log('Realtime: Task UPDATE received', payload.new);
-        const updatedTask = payload.new as Task;
-        setTasks(currentTasks => {
-          if (selectedProjectId && updatedTask.project_id !== selectedProjectId) {
-            return currentTasks.filter(task => task.id !== updatedTask.id);
-          }
-          const taskExists = currentTasks.some(task => task.id === updatedTask.id);
-          if (taskExists) {
-            return currentTasks.map(task => (task.id === updatedTask.id ? updatedTask : task));
-          } else if (!selectedProjectId || updatedTask.project_id === selectedProjectId) {
-            return [...currentTasks, updatedTask];
-          }
-          return currentTasks;
-        });
-      })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'tasks' }, (payload) => {
-        console.log('Realtime: Task DELETE received', payload.old);
-        setTasks(currentTasks => currentTasks.filter(task => task.id !== (payload.old as any).id));
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'kanban_columns' }, () => {
-        console.log('Realtime: Columns changed, refetching data');
-        fetchAllDataRef.current();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'team_members' }, () => {
-        console.log('Realtime: Team members changed, refetching data');
-        fetchAllDataRef.current();
-      });
-
-    // Store reference and subscribe only once
-    channelRef.current = channel;
-    
-    channel.subscribe((status: string) => {
-      console.log("[KANBAN DATA] Channel status:", status);
-      if (status === 'SUBSCRIBED') {
-        isSubscribedRef.current = true;
-      } else if (status === 'CLOSED') {
+    // Clean up existing channel completely before creating new one
+    const cleanupExistingChannel = async () => {
+      if (channelRef.current) {
+        console.log("[KANBAN DATA] Removing existing channel");
         isSubscribedRef.current = false;
+        await supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+        
+        // Small delay to ensure cleanup is complete
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
-    });
+    };
+
+    const setupChannelAndFetchData = async () => {
+      await cleanupExistingChannel();
+      
+      // Fetch initial data
+      await fetchAllData();
+
+      // Create unique channel name to avoid conflicts
+      const timestamp = Date.now();
+      const random = Math.random().toString(36).substring(7);
+      const channelName = selectedProjectId
+        ? `kanban-${selectedProjectId}-${timestamp}-${random}`
+        : `kanban-all-${timestamp}-${random}`;
+
+      console.log("[KANBAN DATA] Creating new channel:", channelName);
+
+      // Create and configure new channel
+      const channel = supabase
+        .channel(channelName)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tasks' }, (payload) => {
+          console.log('Realtime: Task INSERT received', payload.new);
+          const newTask = payload.new as Task;
+          if (!selectedProjectId || newTask.project_id === selectedProjectId) {
+            setTasks(currentTasks => {
+              if (currentTasks.some(t => t.id === newTask.id)) return currentTasks;
+              return [...currentTasks, newTask];
+            });
+          }
+        })
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'tasks' }, (payload) => {
+          console.log('Realtime: Task UPDATE received', payload.new);
+          const updatedTask = payload.new as Task;
+          setTasks(currentTasks => {
+            if (selectedProjectId && updatedTask.project_id !== selectedProjectId) {
+              return currentTasks.filter(task => task.id !== updatedTask.id);
+            }
+            const taskExists = currentTasks.some(task => task.id === updatedTask.id);
+            if (taskExists) {
+              return currentTasks.map(task => (task.id === updatedTask.id ? updatedTask : task));
+            } else if (!selectedProjectId || updatedTask.project_id === selectedProjectId) {
+              return [...currentTasks, updatedTask];
+            }
+            return currentTasks;
+          });
+        })
+        .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'tasks' }, (payload) => {
+          console.log('Realtime: Task DELETE received', payload.old);
+          setTasks(currentTasks => currentTasks.filter(task => task.id !== (payload.old as any).id));
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'kanban_columns' }, () => {
+          console.log('Realtime: Columns changed, refetching data');
+          fetchAllData();
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'team_members' }, () => {
+          console.log('Realtime: Team members changed, refetching data');
+          fetchAllData();
+        });
+
+      // Store reference
+      channelRef.current = channel;
+      
+      // Subscribe only once
+      channel.subscribe((status: string) => {
+        console.log("[KANBAN DATA] Channel status:", status);
+        if (status === 'SUBSCRIBED') {
+          isSubscribedRef.current = true;
+        } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+          isSubscribedRef.current = false;
+        }
+      });
+    };
+
+    setupChannelAndFetchData();
 
     // Cleanup function
     return () => {
       console.log("[KANBAN DATA] Cleaning up channel");
       if (channelRef.current) {
+        isSubscribedRef.current = false;
         supabase.removeChannel(channelRef.current);
         channelRef.current = null;
       }
-      isSubscribedRef.current = false;
     };
-  }, [selectedProjectId]); // Only depend on selectedProjectId
+  }, [selectedProjectId, fetchAllData]);
 
   const moveTask = async (taskId: string, newColumnId: string, newPosition: number) => {
     const originalTasks = tasks;
