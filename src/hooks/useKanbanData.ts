@@ -51,10 +51,13 @@ export const useKanbanData = (selectedProjectId?: string | null) => {
   useEffect(() => {
     fetchAllData();
 
-    // Create a unique channel name based on selected project to avoid conflicts
+    // Create a unique channel name based on selected project and timestamp to avoid conflicts
+    const timestamp = Date.now();
     const channelName = selectedProjectId 
-      ? `kanban-realtime-${selectedProjectId}` 
-      : 'kanban-realtime-all';
+      ? `kanban-${selectedProjectId}-${timestamp}` 
+      : `kanban-all-${timestamp}`;
+
+    console.log('Creating channel:', channelName);
 
     const channel = supabase
       .channel(channelName)
@@ -97,9 +100,12 @@ export const useKanbanData = (selectedProjectId?: string | null) => {
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'kanban_columns' }, () => fetchAllData())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'team_members' }, () => fetchAllData())
-      .subscribe();
+      .subscribe((status) => {
+        console.log('Channel subscription status:', status);
+      });
 
     return () => {
+      console.log('Unsubscribing from channel:', channelName);
       channel.unsubscribe();
     };
   }, [fetchAllData, selectedProjectId]);
