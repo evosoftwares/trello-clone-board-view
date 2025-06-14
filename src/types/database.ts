@@ -16,7 +16,7 @@ export interface Task {
   position: number;
   assignee?: string;
   function_points: number;
-  complexity: 'low' | 'medium' | 'high';
+  complexity: string; // Changed from union type to string to match Supabase
   estimated_hours?: number;
   status_image_filenames: string[];
   created_at: string;

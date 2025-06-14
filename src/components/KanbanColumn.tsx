@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Droppable } from '@hello-pangea/dnd';
 import TaskCard from './TaskCard';
@@ -15,17 +14,17 @@ interface KanbanColumnProps {
 
 const KanbanColumn: React.FC<KanbanColumnProps> = ({ 
   column, 
-  tasks, 
-  tags, 
-  taskTags, 
+  tasks = [], // Default to empty array
+  tags = [], // Default to empty array
+  taskTags = [], // Default to empty array
   onAddTask 
 }) => {
   const [isAdding, setIsAdding] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Filter tasks for this column
-  const columnTasks = tasks.filter(task => task.column_id === column.id)
+  // Filter tasks for this column with null safety
+  const columnTasks = (tasks || []).filter(task => task.column_id === column.id)
     .sort((a, b) => a.position - b.position);
 
   const handleAddTask = () => {

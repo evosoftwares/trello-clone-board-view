@@ -35,11 +35,12 @@ export const useKanbanData = () => {
       if (tagsRes.error) throw tagsRes.error;
       if (taskTagsRes.error) throw taskTagsRes.error;
 
-      setColumns(columnsRes.data || []);
-      setTasks(tasksRes.data || []);
-      setTeamMembers(membersRes.data || []);
-      setTags(tagsRes.data || []);
-      setTaskTags(taskTagsRes.data || []);
+      // Cast the data to our interface types
+      setColumns((columnsRes.data || []) as KanbanColumn[]);
+      setTasks((tasksRes.data || []) as Task[]);
+      setTeamMembers((membersRes.data || []) as TeamMember[]);
+      setTags((tagsRes.data || []) as Tag[]);
+      setTaskTags((taskTagsRes.data || []) as TaskTag[]);
       
     } catch (err: any) {
       console.error('Error fetching data:', err);

@@ -10,17 +10,15 @@ interface TaskCardProps {
   taskTags: TaskTag[];
 }
 
-const TaskCard: React.FC<TaskCardProps> = ({ task, index, tags, taskTags }) => {
-  const tagColorClasses = [
-    'bg-blue-100 text-blue-700',
-    'bg-yellow-100 text-yellow-700',
-    'bg-red-100 text-red-700',
-    'bg-purple-100 text-purple-700',
-  ];
-
-  // Get tags for this task
-  const taskTagIds = taskTags.filter(tt => tt.task_id === task.id).map(tt => tt.tag_id);
-  const taskTagsData = tags.filter(tag => taskTagIds.includes(tag.id));
+const TaskCard: React.FC<TaskCardProps> = ({ 
+  task, 
+  index, 
+  tags = [], // Default to empty array
+  taskTags = [] // Default to empty array
+}) => {
+  // Get tags for this task with null safety
+  const taskTagIds = (taskTags || []).filter(tt => tt.task_id === task.id).map(tt => tt.tag_id);
+  const taskTagsData = (tags || []).filter(tag => taskTagIds.includes(tag.id));
 
   // Get complexity color for function points badge
   const getComplexityColor = (complexity: string) => {
@@ -66,8 +64,8 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, tags, taskTags }) => {
             )}
 
             {/* Function Points Badge */}
-            <div className={`w-6 h-6 rounded-full flex items-center justify-center ml-auto ${getComplexityColor(task.complexity)}`}>
-              <span className="text-xs font-bold">{task.function_points}</span>
+            <div className={`w-6 h-6 rounded-full flex items-center justify-center ml-auto ${getComplexityColor(task.complexity || 'medium')}`}>
+              <span className="text-xs font-bold">{task.function_points || 0}</span>
             </div>
           </div>
 
