@@ -36,14 +36,20 @@ export const useKanbanDataFetch = () => {
 
       if (selectedProjectId) {
         tasksQuery = tasksQuery.eq('project_id', selectedProjectId);
-      } else {
-        // If no project selected, show all tasks
-        tasksQuery = tasksQuery;
       }
 
       const { data: tasksData, error: tasksError } = await tasksQuery;
       if (tasksError) throw tasksError;
-      setTasks(tasksData || []);
+      
+      // Converter os dados para o formato correto
+      const convertedTasks = (tasksData || []).map(task => ({
+        ...task,
+        function_points: task.function_points || 0,
+        complexity: task.complexity || 'medium',
+        status_image_filenames: task.status_image_filenames || []
+      }));
+      
+      setTasks(convertedTasks);
 
       // Fetch profiles (users) instead of team_members
       const { data: profilesData, error: profilesError } = await supabase
@@ -74,7 +80,7 @@ export const useKanbanDataFetch = () => {
 
       console.log('[FETCH] Data loaded successfully:', {
         columns: columnsData?.length,
-        tasks: tasksData?.length,
+        tasks: convertedTasks?.length,
         profiles: profilesData?.length,
         tags: tagsData?.length,
         taskTags: taskTagsData?.length

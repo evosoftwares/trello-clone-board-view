@@ -29,7 +29,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 .from('profiles')
                 .select('*')
                 .eq('id', session.user.id)
-                .single();
+                .maybeSingle(); // Usar maybeSingle ao invés de single
 
               if (error) {
                 console.error('Error fetching profile:', error);
@@ -59,7 +59,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           .from('profiles')
           .select('*')
           .eq('id', session.user.id)
-          .single()
+          .maybeSingle() // Usar maybeSingle ao invés de single
           .then(({ data: profileData, error }) => {
             if (!error && profileData) {
               setProfile(profileData);

@@ -38,9 +38,9 @@ export interface Task {
   description?: string;
   column_id: string;
   position: number;
-  assignee?: string | null; // Agora é UUID referenciando profiles
+  assignee?: string | null; // UUID referenciando profiles
   function_points: number;
-  complexity: 'low' | 'medium' | 'high';
+  complexity: string; // Alterado para string ao invés do union type restritivo
   estimated_hours?: number;
   status_image_filenames: string[];
   project_id?: string | null;
