@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import ReactDOM from 'react-dom';
 import { DragDropContext } from '@hello-pangea/dnd';
-import { Settings } from 'lucide-react';
+import { Settings, AlertTriangle } from 'lucide-react';
 
 import TeamMember from './TeamMember';
 import KanbanColumn from './KanbanColumn';
@@ -16,10 +16,10 @@ import { useToast } from '@/hooks/use-toast';
 import { Task } from '@/types/database';
 
 import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const KanbanBoard = () => {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(() => {
-    // Recuperar projeto selecionado do localStorage
     return localStorage.getItem('selectedProjectId') || null;
   });
   const [showProjectModal, setShowProjectModal] = useState(false);
@@ -116,35 +116,49 @@ const KanbanBoard = () => {
 
   const handleAddTask = async (columnId: string, title: string) => {
     try {
-      // If no project selected, show warning
+      // Validation: Project must be selected
       if (!selectedProjectId) {
         toast({
-          title: "Atenção",
+          title: "Projeto Obrigatório",
           description: "Selecione um projeto antes de criar uma tarefa.",
           variant: "destructive"
         });
         return;
       }
 
+      // Validation: Check if project still exists
+      const projectExists = projects.find(p => p.id === selectedProjectId);
+      if (!projectExists) {
+        toast({
+          title: "Projeto Inválido",
+          description: "O projeto selecionado não existe mais. Selecione outro projeto.",
+          variant: "destructive"
+        });
+        setSelectedProjectId(null);
+        return;
+      }
+
       await createTask(columnId, title, selectedProjectId);
       toast({
         title: "Sucesso",
-        description: "Nova tarefa criada!",
+        description: `Nova tarefa criada no projeto "${projectExists.name}"!`,
       });
     } catch (err) {
       console.error('Error adding task:', err);
+      toast({
+        title: "Erro",
+        description: "Falha ao criar a tarefa. Tente novamente.",
+        variant: "destructive"
+      });
     }
   };
 
   // Calculate stats for team members - only count function points from "Concluído" column
   const teamMembersWithStats = useMemo(() => {
-    // Find the "Concluído" column
     const completedColumn = columns.find(col => col.title === 'Concluído');
     
     return teamMembers.map(member => {
       const memberTasks = tasks.filter(task => task.assignee === member.name);
-      
-      // Only count function points from completed tasks
       const completedTasks = completedColumn 
         ? memberTasks.filter(task => task.column_id === completedColumn.id)
         : [];
@@ -158,6 +172,10 @@ const KanbanBoard = () => {
       };
     });
   }, [teamMembers, tasks, columns]);
+
+  // Check if there are no projects and show helpful message
+  const hasNoProjects = projects.length === 0;
+  const selectedProject = projects.find(p => p.id === selectedProjectId);
 
   if (loading) {
     return (
@@ -196,7 +214,7 @@ const KanbanBoard = () => {
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-6">
         <div className="max-w-7xl mx-auto">
           {/* Header with Logo, Project Selector and Buttons */}
-          <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-6">
               <img src="/imagens/logo.svg" alt="Logo" className="w-32 h-32" />
               <ProjectSelector 
@@ -217,6 +235,52 @@ const KanbanBoard = () => {
               </Button>
             </div>
           </div>
+
+          {/* Project Status Alerts */}
+          {hasNoProjects && (
+            <Alert className="mb-6 border-amber-200 bg-amber-50">
+              <AlertTriangle className="h-4 w-4 text-amber-600" />
+              <AlertDescription className="text-amber-800">
+                <strong>Nenhum projeto encontrado.</strong> Crie seu primeiro projeto para começar a organizar suas tarefas.
+                <Button 
+                  onClick={() => setShowProjectModal(true)}
+                  variant="link" 
+                  className="text-amber-600 hover:text-amber-700 p-0 ml-2 h-auto"
+                >
+                  Criar projeto agora
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {!hasNoProjects && !selectedProjectId && (
+            <Alert className="mb-6 border-blue-200 bg-blue-50">
+              <AlertTriangle className="h-4 w-4 text-blue-600" />
+              <AlertDescription className="text-blue-800">
+                <strong>Selecione um projeto</strong> para visualizar e criar tarefas específicas do projeto.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {selectedProject && (
+            <div className="mb-6 p-4 bg-white rounded-2xl shadow-sm border border-gray-100">
+              <div className="flex items-center gap-3">
+                <div 
+                  className="w-4 h-4 rounded-full"
+                  style={{ backgroundColor: selectedProject.color }}
+                />
+                <div>
+                  <h3 className="font-semibold text-gray-900">{selectedProject.name}</h3>
+                  {selectedProject.description && (
+                    <p className="text-sm text-gray-600">{selectedProject.description}</p>
+                  )}
+                </div>
+                <div className="ml-auto text-sm text-gray-500">
+                  {tasks.length} tarefa{tasks.length !== 1 ? 's' : ''}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Team Section */}
           <div className="bg-white rounded-2xl shadow-lg p-6 mb-8">
@@ -242,6 +306,7 @@ const KanbanBoard = () => {
                     projects={projects}
                     onAddTask={handleAddTask}
                     onTaskClick={openTaskModal}
+                    disabled={!selectedProjectId}
                   />
                 ))}
               </div>

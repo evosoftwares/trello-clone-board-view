@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Droppable } from '@hello-pangea/dnd';
-import { Plus } from 'lucide-react';
+import { Plus, Lock } from 'lucide-react';
 import TaskCard from './TaskCard';
 import { KanbanColumn as KanbanColumnType, Task, Tag, TaskTag, Project } from '@/types/database';
 
@@ -13,6 +13,7 @@ interface KanbanColumnProps {
   projects: Project[];
   onAddTask: (columnId: string, title: string) => void;
   onTaskClick: (task: Task) => void;
+  disabled?: boolean;
 }
 
 const KanbanColumn: React.FC<KanbanColumnProps> = ({ 
@@ -22,7 +23,8 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
   taskTags, 
   projects,
   onAddTask,
-  onTaskClick
+  onTaskClick,
+  disabled = false
 }) => {
   const [isAdding, setIsAdding] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState('');
@@ -31,7 +33,7 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
   const totalFunctionPoints = columnTasks.reduce((sum, task) => sum + (task.function_points || 0), 0);
 
   const handleAddTask = () => {
-    if (newTaskTitle.trim()) {
+    if (newTaskTitle.trim() && !disabled) {
       onAddTask(column.id, newTaskTitle.trim());
       setNewTaskTitle('');
       setIsAdding(false);
@@ -48,7 +50,7 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
   };
 
   return (
-    <div className="bg-gray-50 rounded-2xl p-4 h-fit">
+    <div className={`bg-gray-50 rounded-2xl p-4 h-fit ${disabled ? 'opacity-60' : ''}`}>
       {/* Column Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
@@ -69,13 +71,13 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
       </div>
 
       {/* Droppable Area */}
-      <Droppable droppableId={column.id}>
+      <Droppable droppableId={column.id} isDropDisabled={disabled}>
         {(provided, snapshot) => (
           <div
             ref={provided.innerRef}
             {...provided.droppableProps}
             className={`space-y-3 min-h-[200px] transition-colors duration-200 ${
-              snapshot.isDraggingOver ? 'bg-blue-50 rounded-xl' : ''
+              snapshot.isDraggingOver && !disabled ? 'bg-blue-50 rounded-xl' : ''
             }`}
           >
             {/* Tasks */}
@@ -94,7 +96,7 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
 
             {/* Add Task Button/Input */}
             <div className="mt-4">
-              {isAdding ? (
+              {isAdding && !disabled ? (
                 <div className="bg-white rounded-2xl p-4 border-2 border-blue-200 shadow-sm">
                   <input
                     type="text"
@@ -130,11 +132,25 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
                 </div>
               ) : (
                 <button
-                  onClick={() => setIsAdding(true)}
-                  className="w-full bg-white/50 hover:bg-white/80 border-2 border-dashed border-gray-300 hover:border-blue-300 rounded-2xl p-4 flex items-center justify-center gap-2 text-gray-500 hover:text-blue-500 transition-all duration-200 group"
+                  onClick={() => !disabled && setIsAdding(true)}
+                  disabled={disabled}
+                  className={`w-full border-2 border-dashed rounded-2xl p-4 flex items-center justify-center gap-2 text-sm font-medium transition-all duration-200 ${
+                    disabled 
+                      ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
+                      : 'bg-white/50 hover:bg-white/80 border-gray-300 hover:border-blue-300 text-gray-500 hover:text-blue-500 group'
+                  }`}
                 >
-                  <Plus className="w-4 h-4 group-hover:scale-110 transition-transform" />
-                  <span className="font-medium">Adicionar tarefa</span>
+                  {disabled ? (
+                    <>
+                      <Lock className="w-4 h-4" />
+                      <span>Selecione um projeto</span>
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                      <span>Adicionar tarefa</span>
+                    </>
+                  )}
                 </button>
               )}
             </div>
