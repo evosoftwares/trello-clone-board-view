@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { KanbanColumn, Task, TeamMember, Tag, TaskTag } from '@/types/database';
@@ -50,13 +51,14 @@ export const useKanbanData = (selectedProjectId?: string | null) => {
     }
   }, [selectedProjectId]);
 
-  // Create a stable refresh function that doesn't cause re-renders
-  const refreshData = useCallback(() => {
-    fetchAllData();
-  }, [fetchAllData]);
+  // Use ref to store the latest fetchAllData function to avoid dependency issues
+  const fetchAllDataRef = useRef(fetchAllData);
+  fetchAllDataRef.current = fetchAllData;
 
-  // Channel setup without fetchAllData dependency
-  const setupRealtimeChannel = useCallback(() => {
+  // Setup realtime channel - no dependencies to avoid re-creation
+  useEffect(() => {
+    console.log("[KANBAN DATA] Setting up realtime channel, selectedProjectId:", selectedProjectId);
+    
     // Clean up existing channel first
     if (channelRef.current) {
       console.log("[KANBAN DATA] Removing existing channel");
@@ -108,11 +110,11 @@ export const useKanbanData = (selectedProjectId?: string | null) => {
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'kanban_columns' }, () => {
         console.log('Realtime: Columns changed, refetching data');
-        refreshData();
+        fetchAllDataRef.current();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'team_members' }, () => {
         console.log('Realtime: Team members changed, refetching data');
-        refreshData();
+        fetchAllDataRef.current();
       });
 
     // Store reference and subscribe
@@ -122,28 +124,21 @@ export const useKanbanData = (selectedProjectId?: string | null) => {
       console.log("[KANBAN DATA] Channel status:", status);
     });
 
-    return channel;
-  }, [selectedProjectId, refreshData]);
-
-  // Single effect to handle initialization and project changes
-  useEffect(() => {
-    console.log("[KANBAN DATA] Hook effect triggered, selectedProjectId:", selectedProjectId);
-    
-    // Fetch data first
-    fetchAllData();
-    
-    // Setup realtime channel
-    setupRealtimeChannel();
-
     // Cleanup function
     return () => {
-      console.log("[KANBAN DATA] Cleaning up...");
+      console.log("[KANBAN DATA] Cleaning up channel");
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
         channelRef.current = null;
       }
     };
-  }, [selectedProjectId, fetchAllData, setupRealtimeChannel]);
+  }, [selectedProjectId]); // Only depend on selectedProjectId
+
+  // Separate effect for initial data fetch
+  useEffect(() => {
+    console.log("[KANBAN DATA] Fetching initial data, selectedProjectId:", selectedProjectId);
+    fetchAllData();
+  }, [fetchAllData]);
 
   const moveTask = async (taskId: string, newColumnId: string, newPosition: number) => {
     const originalTasks = tasks;
