@@ -4,9 +4,11 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import LoginForm from '@/components/auth/LoginForm';
 import SignUpForm from '@/components/auth/SignUpForm';
+import InitialUsersSetup from '@/components/admin/InitialUsersSetup';
 
 const AuthPage: React.FC = () => {
   const [isLoginMode, setIsLoginMode] = useState(true);
+  const [showSetup, setShowSetup] = useState(false);
   const { user, loading } = useAuth();
   const navigate = useNavigate();
 
@@ -44,10 +46,35 @@ const AuthPage: React.FC = () => {
           </p>
         </div>
 
-        {isLoginMode ? (
-          <LoginForm onToggleMode={toggleMode} />
+        {showSetup ? (
+          <div>
+            <InitialUsersSetup />
+            <div className="text-center mt-4">
+              <button
+                onClick={() => setShowSetup(false)}
+                className="text-blue-600 hover:text-blue-700 text-sm"
+              >
+                ← Voltar para login
+              </button>
+            </div>
+          </div>
         ) : (
-          <SignUpForm onToggleMode={toggleMode} />
+          <div>
+            {isLoginMode ? (
+              <LoginForm onToggleMode={toggleMode} />
+            ) : (
+              <SignUpForm onToggleMode={toggleMode} />
+            )}
+            
+            <div className="text-center mt-4">
+              <button
+                onClick={() => setShowSetup(true)}
+                className="text-gray-500 hover:text-gray-700 text-sm"
+              >
+                Configurar usuários iniciais
+              </button>
+            </div>
+          </div>
         )}
       </div>
     </div>

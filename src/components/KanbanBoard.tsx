@@ -11,6 +11,7 @@ import { TaskDetailModal } from './modals/TaskDetailModal';
 import Confetti from 'react-confetti';
 import { useKanbanData } from '@/hooks/useKanbanData';
 import { useProjectData } from '@/hooks/useProjectData';
+import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { Task } from '@/types/database';
 
@@ -26,7 +27,7 @@ const KanbanBoard = () => {
   const { 
     columns, 
     tasks, 
-    teamMembers, 
+    profiles, 
     tags, 
     taskTags, 
     loading, 
@@ -40,6 +41,7 @@ const KanbanBoard = () => {
   } = useKanbanData(selectedProjectId);
   
   const { projects, loading: projectsLoading } = useProjectData();
+  const { profile } = useAuth();
   const { toast } = useToast();
   const [runConfetti, setRunConfetti] = useState(false);
   const [windowSize, setWindowSize] = useState({
@@ -162,28 +164,26 @@ const KanbanBoard = () => {
     }
   };
 
-  // DEBUG: Detect any Realtime activity
-  console.debug('[KANBAN BOARD] Mounted - should be no Realtime subscriptions here.');
-
-  // Calculate stats for team members - only count function points from "Concluído" column
-  const teamMembersWithStats = useMemo(() => {
+  // Calculate stats for profiles - only count function points from "Concluído" column
+  const profilesWithStats = useMemo(() => {
     const completedColumn = columns.find(col => col.title === 'Concluído');
     
-    return teamMembers.map(member => {
-      const memberTasks = tasks.filter(task => task.assignee === member.name);
+    return profiles.map(profileItem => {
+      // Buscar tarefas por UUID do profile, não por nome
+      const profileTasks = tasks.filter(task => task.assignee === profileItem.id);
       const completedTasks = completedColumn 
-        ? memberTasks.filter(task => task.column_id === completedColumn.id)
+        ? profileTasks.filter(task => task.column_id === completedColumn.id)
         : [];
       
       const totalFunctionPoints = completedTasks.reduce((sum, task) => sum + (task.function_points || 0), 0);
       
       return {
-        ...member,
-        taskCount: memberTasks.length,
+        ...profileItem,
+        taskCount: profileTasks.length,
         functionPoints: totalFunctionPoints,
       };
     });
-  }, [teamMembers, tasks, columns]);
+  }, [profiles, tasks, columns]);
 
   // Check if there are no projects and show helpful message
   const hasNoProjects = !projectsLoading && projects.length === 0;
@@ -308,11 +308,11 @@ const KanbanBoard = () => {
             </div>
           )}
 
-          {/* Team Section */}
+          {/* Team Section - agora usando profiles */}
           <div className="bg-white rounded-2xl shadow-lg p-6 mb-8">
             <h2 className="text-xl font-semibold text-gray-800 mb-6">Equipe</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {teamMembersWithStats.map((member) => (
+              {profilesWithStats.map((member) => (
                 <TeamMember key={member.id} member={member} />
               ))}
             </div>
@@ -345,7 +345,7 @@ const KanbanBoard = () => {
           task={selectedTask}
           isOpen={!!selectedTask}
           onClose={closeTaskModal}
-          teamMembers={teamMembers}
+          teamMembers={profiles} // Passar profiles como teamMembers
           projects={projects}
           updateTask={updateTask}
           deleteTask={deleteTask}

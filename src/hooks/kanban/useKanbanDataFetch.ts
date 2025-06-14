@@ -1,72 +1,87 @@
 
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { KanbanColumn, Task, TeamMember, Tag, TaskTag } from '@/types/database';
-
-console.debug('[KANBAN DATA FETCH] Loaded - optimized for position handling.');
+import { KanbanColumn, Task, Profile, Tag, TaskTag } from '@/types/database';
 
 export const useKanbanDataFetch = () => {
   const [columns, setColumns] = useState<KanbanColumn[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
   const [taskTags, setTaskTags] = useState<TaskTag[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchAllData = useCallback(async (selectedProjectId?: string | null) => {
+    setLoading(true);
+    setError(null);
+    
     try {
-      setLoading(true);
-      setError(null);
+      console.log('[FETCH] Starting data fetch...');
       
-      console.log("[KANBAN FETCH] Fetching data for project:", selectedProjectId);
+      // Fetch columns
+      const { data: columnsData, error: columnsError } = await supabase
+        .from('kanban_columns')
+        .select('*')
+        .order('position');
 
-      // Build tasks query with proper ordering
+      if (columnsError) throw columnsError;
+      setColumns(columnsData || []);
+
+      // Fetch tasks with project filter
       let tasksQuery = supabase
         .from('tasks')
         .select('*')
-        .order('column_id')
-        .order('position', { ascending: true })
-        .order('created_at', { ascending: true });
-      
+        .order('position');
+
       if (selectedProjectId) {
         tasksQuery = tasksQuery.eq('project_id', selectedProjectId);
+      } else {
+        // If no project selected, show all tasks
+        tasksQuery = tasksQuery;
       }
 
-      const [columnsRes, tasksRes, membersRes, tagsRes, taskTagsRes] = await Promise.all([
-        supabase.from('kanban_columns').select('*').order('position'),
-        tasksQuery,
-        supabase.from('team_members').select('*').order('name'),
-        supabase.from('tags').select('*').order('name'),
-        supabase.from('task_tags').select('*')
-      ]);
+      const { data: tasksData, error: tasksError } = await tasksQuery;
+      if (tasksError) throw tasksError;
+      setTasks(tasksData || []);
 
-      if (columnsRes.error) throw columnsRes.error;
-      if (tasksRes.error) throw tasksRes.error;
-      if (membersRes.error) throw membersRes.error;
-      if (tagsRes.error) throw tagsRes.error;
-      if (taskTagsRes.error) throw taskTagsRes.error;
+      // Fetch profiles (users) instead of team_members
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('is_active', true)
+        .order('name');
 
-      const fetchedTasks = (tasksRes.data || []) as Task[];
-      
-      // Log task positions for debugging
-      console.log("[KANBAN FETCH] Tasks by column:", 
-        fetchedTasks.reduce((acc, task) => {
-          if (!acc[task.column_id]) acc[task.column_id] = [];
-          acc[task.column_id].push({ id: task.id, title: task.title, position: task.position });
-          return acc;
-        }, {} as Record<string, any[]>)
-      );
+      if (profilesError) throw profilesError;
+      setProfiles(profilesData || []);
 
-      setColumns((columnsRes.data || []) as KanbanColumn[]);
-      setTasks(fetchedTasks);
-      setTeamMembers((membersRes.data || []) as TeamMember[]);
-      setTags((tagsRes.data || []) as Tag[]);
-      setTaskTags((taskTagsRes.data || []) as TaskTag[]);
-      
-      console.log("[KANBAN FETCH] Data fetched successfully");
+      // Fetch tags
+      const { data: tagsData, error: tagsError } = await supabase
+        .from('tags')
+        .select('*')
+        .order('name');
+
+      if (tagsError) throw tagsError;
+      setTags(tagsData || []);
+
+      // Fetch task tags
+      const { data: taskTagsData, error: taskTagsError } = await supabase
+        .from('task_tags')
+        .select('*');
+
+      if (taskTagsError) throw taskTagsError;
+      setTaskTags(taskTagsData || []);
+
+      console.log('[FETCH] Data loaded successfully:', {
+        columns: columnsData?.length,
+        tasks: tasksData?.length,
+        profiles: profilesData?.length,
+        tags: tagsData?.length,
+        taskTags: taskTagsData?.length
+      });
+
     } catch (err: any) {
-      console.error('[KANBAN FETCH] Error fetching data:', err);
+      console.error('[FETCH] Error fetching data:', err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -76,7 +91,7 @@ export const useKanbanDataFetch = () => {
   return {
     columns,
     tasks,
-    teamMembers,
+    profiles,
     tags,
     taskTags,
     loading,
@@ -84,7 +99,7 @@ export const useKanbanDataFetch = () => {
     fetchAllData,
     setTasks,
     setColumns,
-    setTeamMembers,
+    setProfiles,
     setTags,
     setTaskTags
   };

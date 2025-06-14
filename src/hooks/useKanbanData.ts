@@ -8,7 +8,7 @@ export const useKanbanData = (selectedProjectId?: string | null) => {
   const {
     columns,
     tasks,
-    teamMembers,
+    profiles, // Mudou de teamMembers para profiles
     tags,
     taskTags,
     loading,
@@ -16,7 +16,7 @@ export const useKanbanData = (selectedProjectId?: string | null) => {
     fetchAllData,
     setTasks,
     setColumns,
-    setTeamMembers,
+    setProfiles, // Mudou de setTeamMembers para setProfiles
     setTags,
     setTaskTags
   } = useKanbanDataFetch();
@@ -40,7 +40,8 @@ export const useKanbanData = (selectedProjectId?: string | null) => {
   return {
     columns,
     tasks,
-    teamMembers,
+    teamMembers: profiles, // Alias para manter compatibilidade
+    profiles,
     tags,
     taskTags,
     loading,
