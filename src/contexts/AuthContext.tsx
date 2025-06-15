@@ -3,6 +3,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { AuthContextType, Profile } from '@/types/auth';
+import { useManualProfileCreation } from '@/hooks/useManualProfileCreation';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -11,6 +12,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const { ensureProfileExists } = useManualProfileCreation();
 
   useEffect(() => {
     // Set up auth state listener
@@ -22,22 +24,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(session?.user ?? null);
 
         if (session?.user) {
-          // Fetch user profile after successful authentication
+          // Garantir que o perfil existe após autenticação
           setTimeout(async () => {
             try {
+              // Primeiro tentar buscar perfil existente
               const { data: profileData, error } = await supabase
                 .from('profiles')
                 .select('*')
                 .eq('id', session.user.id)
-                .maybeSingle(); // Usar maybeSingle ao invés de single
+                .maybeSingle();
 
-              if (error) {
+              if (error && error.code !== 'PGRST116') {
                 console.error('Error fetching profile:', error);
-              } else {
+              }
+
+              if (profileData) {
                 setProfile(profileData);
+              } else {
+                // Se não existir, criar perfil
+                const newProfile = await ensureProfileExists(session.user);
+                setProfile(newProfile);
               }
             } catch (err) {
-              console.error('Profile fetch error:', err);
+              console.error('Profile management error:', err);
             }
             setLoading(false);
           }, 0);
@@ -59,10 +68,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           .from('profiles')
           .select('*')
           .eq('id', session.user.id)
-          .maybeSingle() // Usar maybeSingle ao invés de single
-          .then(({ data: profileData, error }) => {
+          .maybeSingle()
+          .then(async ({ data: profileData, error }) => {
             if (!error && profileData) {
               setProfile(profileData);
+            } else if (!profileData) {
+              // Criar perfil se não existir
+              const newProfile = await ensureProfileExists(session.user);
+              setProfile(newProfile);
             }
             setLoading(false);
           });
@@ -72,7 +85,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [ensureProfileExists]);
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({
@@ -85,7 +98,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signUp = async (email: string, password: string, name: string) => {
     const redirectUrl = `${window.location.origin}/`;
     
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -95,6 +108,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
     });
+
+    // Se signup foi bem-sucedido, criar perfil imediatamente
+    if (!error && data.user) {
+      setTimeout(async () => {
+        await ensureProfileExists(data.user);
+      }, 1000);
+    }
+
     return { error };
   };
 

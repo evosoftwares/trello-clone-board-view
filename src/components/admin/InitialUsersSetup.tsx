@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useManualProfileCreation } from '@/hooks/useManualProfileCreation';
 
 const initialUsers = [
   {
@@ -36,6 +37,7 @@ const InitialUsersSetup: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [createdUsers, setCreatedUsers] = useState<string[]>([]);
   const { toast } = useToast();
+  const { createProfileIfNotExists } = useManualProfileCreation();
 
   const createInitialUsers = async () => {
     setLoading(true);
@@ -43,6 +45,7 @@ const InitialUsersSetup: React.FC = () => {
 
     for (const user of initialUsers) {
       try {
+        // 1. Tentar criar usuário na autenticação
         const { data, error } = await supabase.auth.signUp({
           email: user.email,
           password: user.password,
@@ -57,13 +60,37 @@ const InitialUsersSetup: React.FC = () => {
         if (error) {
           if (error.message.includes('already registered')) {
             console.log(`Usuário ${user.name} já existe`);
+            
+            // Verificar se perfil existe, se não criar
+            const { data: existingProfile } = await supabase
+              .from('profiles')
+              .select('id')
+              .eq('email', user.email)
+              .maybeSingle();
+
+            if (!existingProfile) {
+              // Usuário existe na auth mas não tem perfil - criar perfil
+              // Primeiro precisamos pegar o ID do usuário
+              const { data: userData } = await supabase.auth.signInWithPassword({
+                email: user.email,
+                password: user.password
+              });
+
+              if (userData.user) {
+                await createProfileIfNotExists(userData.user.id, user.name, user.email, user.role);
+                await supabase.auth.signOut(); // Deslogar após criar perfil
+              }
+            }
+            
             created.push(`${user.name} (já existia)`);
           } else {
             throw error;
           }
-        } else {
-          console.log(`Usuário ${user.name} criado com sucesso`);
+        } else if (data.user) {
+          // 2. Criar perfil imediatamente após signup
+          await createProfileIfNotExists(data.user.id, user.name, user.email, user.role);
           created.push(user.name);
+          console.log(`Usuário ${user.name} criado com sucesso`);
         }
       } catch (err: any) {
         console.error(`Erro ao criar usuário ${user.name}:`, err);
