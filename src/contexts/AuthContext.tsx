@@ -43,7 +43,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               } else {
                 // Se não existir, criar perfil
                 const newProfile = await ensureProfileExists(session.user);
-                setProfile(newProfile);
+                if (newProfile) {
+                  setProfile(newProfile);
+                }
               }
             } catch (err) {
               console.error('Profile management error:', err);
@@ -75,7 +77,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             } else if (!profileData) {
               // Criar perfil se não existir
               const newProfile = await ensureProfileExists(session.user);
-              setProfile(newProfile);
+              if (newProfile) {
+                setProfile(newProfile);
+              }
             }
             setLoading(false);
           });
