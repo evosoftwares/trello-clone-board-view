@@ -91,17 +91,15 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
         </div>
       </div>
 
-      {/* Droppable Area - Desabilitar drop para coluna concluída */}
-      <Droppable droppableId={column.id} isDropDisabled={isCompletedColumn}>
+      {/* Droppable Area - Permitir drop na coluna concluída */}
+      <Droppable droppableId={column.id}>
         {(provided, snapshot) => (
           <div
             ref={provided.innerRef}
             {...provided.droppableProps}
             className={`space-y-3 min-h-[200px] rounded-xl p-2 ${
-              snapshot.isDraggingOver && !isCompletedColumn
+              snapshot.isDraggingOver
                 ? 'bg-blue-50 border-2 border-blue-300 border-dashed' 
-                : isCompletedColumn && snapshot.isDraggingOver
-                ? 'bg-red-50 border-2 border-red-300 border-dashed'
                 : 'border-2 border-transparent'
             }`}
           >
@@ -123,17 +121,11 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
 
             {/* Visual feedback for drop zone */}
             {snapshot.isDraggingOver && (
-              <div className={`flex items-center justify-center py-4 text-sm font-medium ${
-                isCompletedColumn 
-                  ? 'text-red-500' 
-                  : 'text-blue-500'
-              }`}>
+              <div className="flex items-center justify-center py-4 text-sm font-medium text-blue-500">
                 <div className="flex items-center gap-2">
-                  <div className={`w-2 h-2 rounded-full ${
-                    isCompletedColumn ? 'bg-red-500' : 'bg-blue-500'
-                  }`}></div>
+                  <div className="w-2 h-2 rounded-full bg-blue-500"></div>
                   {isCompletedColumn 
-                    ? 'Tarefas concluídas não podem ser movidas'
+                    ? 'Solte aqui para concluir a tarefa'
                     : `Solte aqui para adicionar à ${column.title}`
                   }
                 </div>

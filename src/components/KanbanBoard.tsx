@@ -34,15 +34,9 @@ const KanbanBoard = () => {
     if (!destination) return;
     if (destination.droppableId === source.droppableId && destination.index === source.index) return;
 
-    // Verificar se a tarefa está sendo movida para ou de uma coluna "Concluído"
-    const destColumn = columns.find(col => col.id === destination.droppableId);
+    // Verificar se a tarefa está sendo movida DE uma coluna "Concluído"
     const sourceColumn = columns.find(col => col.id === source.droppableId);
     
-    const isDestCompleted = destColumn?.title?.toLowerCase().includes('concluído') || 
-                           destColumn?.title?.toLowerCase().includes('concluido') ||
-                           destColumn?.title?.toLowerCase().includes('completed') ||
-                           destColumn?.title?.toLowerCase().includes('done');
-                           
     const isSourceCompleted = sourceColumn?.title?.toLowerCase().includes('concluído') || 
                              sourceColumn?.title?.toLowerCase().includes('concluido') ||
                              sourceColumn?.title?.toLowerCase().includes('completed') ||
