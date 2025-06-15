@@ -33,8 +33,8 @@ const TaskCard: React.FC<TaskCardProps> = ({
           {...provided.draggableProps}
           {...provided.dragHandleProps}
           onClick={() => onTaskClick(task)}
-          className={`bg-white rounded-2xl p-4 shadow-sm border border-gray-100 cursor-pointer active:cursor-grabbing hover:shadow-md ${
-            snapshot.isDragging ? 'shadow-lg' : ''
+          className={`bg-white rounded-2xl p-4 shadow-sm border border-gray-100 cursor-pointer active:cursor-grabbing hover:shadow-md transition-all duration-200 ${
+            snapshot.isDragging ? 'shadow-lg rotate-2' : ''
           }`}
         >
           {/* Header com ícones e projeto */}
@@ -68,33 +68,45 @@ const TaskCard: React.FC<TaskCardProps> = ({
             </div>
           )}
 
+          {/* Tags - Movidas para cima, antes do título */}
+          {taskTagsData.length > 0 && (
+            <div className="flex flex-wrap gap-1 mb-3">
+              {taskTagsData.slice(0, 3).map((tag) => (
+                <span 
+                  key={tag.id} 
+                  className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border"
+                  style={{ 
+                    backgroundColor: tag.color + '15', 
+                    borderColor: tag.color + '30',
+                    color: tag.color 
+                  }}
+                >
+                  <div 
+                    className="w-2 h-2 rounded-full mr-1"
+                    style={{ backgroundColor: tag.color }}
+                  />
+                  {tag.name}
+                </span>
+              ))}
+              {taskTagsData.length > 3 && (
+                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">
+                  +{taskTagsData.length - 3}
+                </span>
+              )}
+            </div>
+          )}
+
           {/* Título */}
-          <h3 className="text-gray-900 font-semibold text-base mb-2">
+          <h3 className="text-gray-900 font-semibold text-base mb-2 line-clamp-2">
             {task.title}
           </h3>
 
           {/* Descrição */}
-          <p className="text-gray-500 text-sm mb-4 truncate">
-            {task.description || 'Sem descrição'}
-          </p>
-
-          {/* Tags */}
-          <div className="flex flex-wrap gap-2">
-            {taskTagsData.length > 0 ? (
-              taskTagsData.map((tag) => (
-                <span 
-                  key={tag.id} 
-                  className={`px-3 py-1 rounded-full text-xs font-medium`}
-                  style={{ 
-                    backgroundColor: tag.color + '20', 
-                    color: tag.color 
-                  }}
-                >
-                  {tag.name}
-                </span>
-              ))
-            ) : null}
-          </div>
+          {task.description && (
+            <p className="text-gray-500 text-sm mb-3 line-clamp-2">
+              {task.description}
+            </p>
+          )}
 
           {/* Assignee info */}
           {task.assignee && (

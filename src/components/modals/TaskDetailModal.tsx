@@ -3,10 +3,12 @@ import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Trash, User, Clock, Target, Save } from 'lucide-react';
+import { Trash, User, Clock, Target, Save, Tag } from 'lucide-react';
 
 import { useToast } from '@/hooks/use-toast';
-import { Task, TeamMember, Project } from '@/types/database';
+import { Task, TeamMember, Project, Tag as TagType, TaskTag } from '@/types/database';
+import { TagSelector } from '@/components/tags/TagSelector';
+import { useTagMutations } from '@/hooks/useTagMutations';
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
@@ -21,7 +23,7 @@ const taskFormSchema = z.object({
   description: z.string().optional(),
   assignee: z.string().optional(),
   function_points: z.coerce.number().min(0).optional(),
-  complexity: z.string(), // Alterado para string simples
+  complexity: z.string(),
   project_id: z.string().min(1, 'Projeto é obrigatório.'),
 });
 
@@ -31,8 +33,11 @@ interface TaskDetailModalProps {
   onClose: () => void;
   teamMembers: TeamMember[];
   projects: Project[];
+  tags: TagType[];
+  taskTags: TaskTag[];
   updateTask: (taskId: string, updates: Partial<Omit<Task, 'id'>>) => Promise<void>;
   deleteTask: (taskId: string) => Promise<void>;
+  refreshData: () => void;
 }
 
 const UNASSIGNED_VALUE = 'unassigned-sentinel';
@@ -43,12 +48,23 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   onClose, 
   teamMembers, 
   projects,
+  tags,
+  taskTags,
   updateTask,
-  deleteTask
+  deleteTask,
+  refreshData
 }) => {
   const { toast } = useToast();
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  
+  const {
+    createTag,
+    updateTag,
+    deleteTag,
+    addTagToTask,
+    removeTagFromTask
+  } = useTagMutations();
   
   const form = useForm<z.infer<typeof taskFormSchema>>({
     resolver: zodResolver(taskFormSchema),
@@ -83,6 +99,29 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
         return { color: 'bg-rose-50 text-rose-700 border-rose-200', label: 'Alta' };
       default:
         return { color: 'bg-blue-50 text-blue-700 border-blue-200', label: 'Média' };
+    }
+  };
+
+  const handleTagOperations = {
+    createTag: async (name: string, color: string) => {
+      await createTag(name, color);
+      refreshData();
+    },
+    updateTag: async (tagId: string, name: string, color: string) => {
+      await updateTag(tagId, name, color);
+      refreshData();
+    },
+    deleteTag: async (tagId: string) => {
+      await deleteTag(tagId);
+      refreshData();
+    },
+    addTagToTask: async (taskId: string, tagId: string) => {
+      await addTagToTask(taskId, tagId);
+      refreshData();
+    },
+    removeTagFromTask: async (taskId: string, tagId: string) => {
+      await removeTagFromTask(taskId, tagId);
+      refreshData();
     }
   };
 
@@ -135,6 +174,12 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const complexityConfig = getComplexityConfig(form.watch('complexity'));
   const selectedProject = projects.find(p => p.id === form.watch('project_id'));
 
+  // Get current task tags for display
+  const currentTaskTagIds = taskTags
+    .filter(tt => tt.task_id === task.id)
+    .map(tt => tt.tag_id);
+  const currentTaskTags = tags.filter(tag => currentTaskTagIds.includes(tag.id));
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[650px] max-h-[90vh] bg-white border-0 shadow-2xl rounded-3xl overflow-hidden">
@@ -159,6 +204,52 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
         </DialogHeader>
         
         <div className="px-8 pb-8 overflow-y-auto">
+          {/* Tags Section */}
+          <div className="mb-6 p-4 bg-gray-50 rounded-2xl">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                <Tag className="w-4 h-4 text-blue-500" />
+                Etiquetas
+              </h4>
+              <TagSelector
+                taskId={task.id}
+                allTags={tags}
+                taskTags={taskTags}
+                {...handleTagOperations}
+                trigger={
+                  <Button variant="outline" size="sm" className="h-8 rounded-lg">
+                    <Tag className="w-4 h-4 mr-1" />
+                    Gerenciar
+                  </Button>
+                }
+              />
+            </div>
+            
+            {currentTaskTags.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {currentTaskTags.map((tag) => (
+                  <span 
+                    key={tag.id} 
+                    className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium border"
+                    style={{ 
+                      backgroundColor: tag.color + '15', 
+                      borderColor: tag.color + '30',
+                      color: tag.color 
+                    }}
+                  >
+                    <div 
+                      className="w-2 h-2 rounded-full mr-2"
+                      style={{ backgroundColor: tag.color }}
+                    />
+                    {tag.name}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500 italic">Nenhuma etiqueta atribuída</p>
+            )}
+          </div>
+
           <Form {...form}>
             <form id="edit-task-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               {/* Project Field */}
@@ -210,7 +301,6 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                 </FormItem>
               )} />
 
-              {/* Description Field */}
               <FormField control={form.control} name="description" render={({ field }) => (
                 <FormItem>
                   <FormLabel className="text-sm font-semibold text-gray-700 flex items-center gap-2">
@@ -229,7 +319,6 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                 </FormItem>
               )} />
 
-              {/* Assignee Field */}
               <FormField control={form.control} name="assignee" render={({ field }) => (
                 <FormItem>
                   <FormLabel className="text-sm font-semibold text-gray-700 flex items-center gap-2">
@@ -264,7 +353,6 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                 </FormItem>
               )} />
 
-              {/* Function Points and Complexity Row */}
               <div className="grid grid-cols-2 gap-6">
                 <FormField control={form.control} name="function_points" render={({ field }) => (
                   <FormItem>
@@ -322,7 +410,6 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                 )} />
               </div>
 
-              {/* Complexity Preview */}
               <div className={`p-4 rounded-xl border ${complexityConfig.color} transition-all duration-200`}>
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">Complexidade Selecionada</span>
