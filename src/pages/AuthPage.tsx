@@ -38,6 +38,13 @@ const AuthPage: React.FC = () => {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
+          <div className="flex justify-center mb-4">
+            <img 
+              src="/lovable-uploads/a10ac338-4759-417e-b7e5-f346ffac3d60.png" 
+              alt="Evo Logo" 
+              className="h-12 w-auto"
+            />
+          </div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
             Sistema Kanban
           </h1>

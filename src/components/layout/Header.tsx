@@ -46,7 +46,13 @@ const Header: React.FC = () => {
   return (
     <header className="bg-white border-b border-gray-200 px-6 py-4">
       <div className="flex items-center justify-between">
-        <div>
+        <div className="flex items-center gap-4">
+          <img 
+            src="/lovable-uploads/a10ac338-4759-417e-b7e5-f346ffac3d60.png" 
+            alt="Evo Logo" 
+            className="h-8 w-auto"
+          />
+          <div className="h-8 w-px bg-gray-300" />
           <h1 className="text-2xl font-bold text-gray-900">
             Sistema Kanban
           </h1>
