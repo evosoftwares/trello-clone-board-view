@@ -36,17 +36,24 @@ const initialUsers = [
 const InitialUsersSetup: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [createdUsers, setCreatedUsers] = useState<string[]>([]);
+  const [errors, setErrors] = useState<string[]>([]);
   const { toast } = useToast();
   const { createProfileIfNotExists } = useManualProfileCreation();
 
   const createInitialUsers = async () => {
     setLoading(true);
+    setErrors([]);
     const created: string[] = [];
+    const errorList: string[] = [];
+
+    console.log('[INITIAL USERS] Starting user creation process...');
 
     for (const user of initialUsers) {
       try {
+        console.log(`[INITIAL USERS] Processing user: ${user.name}`);
+
         // 1. Tentar criar usuário na autenticação
-        const { data, error } = await supabase.auth.signUp({
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
           email: user.email,
           password: user.password,
           options: {
@@ -57,58 +64,82 @@ const InitialUsersSetup: React.FC = () => {
           }
         });
 
-        if (error) {
-          if (error.message.includes('already registered')) {
-            console.log(`Usuário ${user.name} já existe`);
+        if (signUpError) {
+          if (signUpError.message.includes('already registered')) {
+            console.log(`[INITIAL USERS] User ${user.name} already exists in auth`);
             
-            // Verificar se perfil existe, se não criar
-            const { data: existingProfile } = await supabase
-              .from('profiles')
-              .select('id')
-              .eq('email', user.email)
-              .maybeSingle();
+            // Usuário já existe - tentar fazer login para pegar o ID
+            const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+              email: user.email,
+              password: user.password
+            });
 
-            if (!existingProfile) {
-              // Usuário existe na auth mas não tem perfil - criar perfil
-              // Primeiro precisamos pegar o ID do usuário
-              const { data: userData } = await supabase.auth.signInWithPassword({
-                email: user.email,
-                password: user.password
-              });
-
-              if (userData.user) {
-                await createProfileIfNotExists(userData.user.id, user.name, user.email, user.role);
-                await supabase.auth.signOut(); // Deslogar após criar perfil
-              }
+            if (signInError) {
+              console.error(`[INITIAL USERS] Could not sign in existing user ${user.name}:`, signInError);
+              errorList.push(`${user.name}: ${signInError.message}`);
+              continue;
             }
-            
-            created.push(`${user.name} (já existia)`);
+
+            if (signInData.user) {
+              // Verificar se perfil existe
+              const { data: existingProfile } = await supabase
+                .from('profiles')
+                .select('id')
+                .eq('id', signInData.user.id)
+                .maybeSingle();
+
+              if (!existingProfile) {
+                // Criar perfil para usuário existente
+                await createProfileIfNotExists(signInData.user.id, user.name, user.email, user.role);
+              }
+              
+              // Deslogar após verificação
+              await supabase.auth.signOut();
+              created.push(`${user.name} (já existia)`);
+            }
           } else {
-            throw error;
+            console.error(`[INITIAL USERS] Signup error for ${user.name}:`, signUpError);
+            errorList.push(`${user.name}: ${signUpError.message}`);
           }
-        } else if (data.user) {
+        } else if (signUpData.user) {
+          console.log(`[INITIAL USERS] User ${user.name} created in auth`);
+          
           // 2. Criar perfil imediatamente após signup
-          await createProfileIfNotExists(data.user.id, user.name, user.email, user.role);
-          created.push(user.name);
-          console.log(`Usuário ${user.name} criado com sucesso`);
+          const profile = await createProfileIfNotExists(signUpData.user.id, user.name, user.email, user.role);
+          
+          if (profile) {
+            created.push(user.name);
+            console.log(`[INITIAL USERS] User ${user.name} created successfully with profile`);
+          } else {
+            errorList.push(`${user.name}: Falha ao criar perfil`);
+          }
         }
+
+        // Pequena pausa entre criações
+        await new Promise(resolve => setTimeout(resolve, 500));
+
       } catch (err: any) {
-        console.error(`Erro ao criar usuário ${user.name}:`, err);
-        toast({
-          title: "Erro",
-          description: `Falha ao criar usuário ${user.name}: ${err.message}`,
-          variant: "destructive"
-        });
+        console.error(`[INITIAL USERS] Unexpected error for ${user.name}:`, err);
+        errorList.push(`${user.name}: ${err.message || 'Erro inesperado'}`);
       }
     }
 
     setCreatedUsers(created);
+    setErrors(errorList);
     setLoading(false);
     
     if (created.length > 0) {
       toast({
-        title: "Usuários configurados!",
-        description: `${created.length} usuários foram processados com sucesso.`
+        title: "Usuários processados!",
+        description: `${created.length} usuário(s) processado(s) com sucesso.`
+      });
+    }
+
+    if (errorList.length > 0) {
+      toast({
+        title: "Alguns erros ocorreram",
+        description: `${errorList.length} erro(s) encontrado(s). Verifique os detalhes abaixo.`,
+        variant: "destructive"
       });
     }
   };
@@ -150,10 +181,24 @@ const InitialUsersSetup: React.FC = () => {
           </div>
         )}
 
+        {errors.length > 0 && (
+          <div className="text-sm">
+            <p className="font-medium text-red-600 mb-2">Erros encontrados:</p>
+            <ul className="space-y-1 text-sm text-red-500">
+              {errors.map((error, index) => (
+                <li key={index}>✗ {error}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         <div className="text-xs text-muted-foreground">
-          <p>Credenciais temporárias:</p>
+          <p>Credenciais:</p>
           <p>• Email: nome@kanban.dev</p>
           <p>• Senha: nome123</p>
+          <p className="mt-2 text-amber-600">
+            ⚠️ Confirme os usuários no Supabase Dashboard se necessário
+          </p>
         </div>
       </CardContent>
     </Card>

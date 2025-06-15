@@ -11,44 +11,78 @@ export const useManualProfileCreation = () => {
   const createProfileIfNotExists = async (userId: string, name: string, email?: string, role = 'developer'): Promise<Profile | null> => {
     try {
       setLoading(true);
+      console.log('[PROFILE CREATION] Starting for user:', { userId, name, email, role });
       
       // Verificar se perfil já existe
-      const { data: existingProfile } = await supabase
+      console.log('[PROFILE CREATION] Checking if profile exists...');
+      const { data: existingProfile, error: checkError } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .maybeSingle();
 
+      if (checkError) {
+        console.error('[PROFILE CREATION] Error checking existing profile:', checkError);
+        throw checkError;
+      }
+
       if (existingProfile) {
-        console.log('Profile already exists for user:', userId);
+        console.log('[PROFILE CREATION] Profile already exists:', existingProfile);
         return existingProfile as Profile;
       }
 
       // Criar novo perfil
-      const { data: newProfile, error } = await supabase
+      console.log('[PROFILE CREATION] Creating new profile...');
+      const profileData = {
+        id: userId,
+        name: name,
+        email: email,
+        role: role,
+        is_active: true
+      };
+
+      console.log('[PROFILE CREATION] Profile data to insert:', profileData);
+
+      const { data: newProfile, error: insertError } = await supabase
         .from('profiles')
-        .insert({
-          id: userId,
-          name: name,
-          email: email,
-          role: role,
-          is_active: true
-        })
+        .insert(profileData)
         .select()
         .single();
 
-      if (error) throw error;
+      if (insertError) {
+        console.error('[PROFILE CREATION] Insert error:', insertError);
+        throw insertError;
+      }
 
-      console.log('Profile created successfully:', newProfile);
+      console.log('[PROFILE CREATION] Profile created successfully:', newProfile);
+      
+      toast({
+        title: "Perfil criado",
+        description: `Perfil de ${name} criado com sucesso!`,
+      });
+
       return newProfile as Profile;
 
     } catch (err: any) {
-      console.error('Error creating profile:', err);
+      console.error('[PROFILE CREATION] Error creating profile:', err);
+      
+      // Mensagens de erro mais específicas
+      let errorMessage = 'Erro desconhecido ao criar perfil';
+      
+      if (err.message?.includes('Failed to fetch')) {
+        errorMessage = 'Erro de conexão com o banco de dados. Verifique sua conexão com internet.';
+      } else if (err.message?.includes('duplicate key')) {
+        errorMessage = 'Perfil já existe para este usuário.';
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+
       toast({
         title: "Erro ao criar perfil",
-        description: err.message,
+        description: errorMessage,
         variant: "destructive"
       });
+      
       return null;
     } finally {
       setLoading(false);
@@ -56,8 +90,12 @@ export const useManualProfileCreation = () => {
   };
 
   const ensureProfileExists = async (user: any): Promise<Profile | null> => {
-    if (!user) return null;
+    if (!user) {
+      console.log('[PROFILE CREATION] No user provided');
+      return null;
+    }
 
+    console.log('[PROFILE CREATION] Ensuring profile exists for user:', user.id);
     const name = user.user_metadata?.name || user.email?.split('@')[0] || 'Usuário';
     return await createProfileIfNotExists(user.id, name, user.email);
   };
