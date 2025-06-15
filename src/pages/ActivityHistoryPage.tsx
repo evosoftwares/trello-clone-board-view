@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { Clock, ArrowLeft, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -147,14 +148,19 @@ const ActivityHistoryPage: React.FC = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-6">
-        <Card className="max-w-md mx-auto">
-          <CardContent className="p-6 text-center">
-            <div className="text-red-600 mb-4">
-              ❌ Erro ao carregar histórico: {error}
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-6">
+        <Card className="max-w-md mx-auto rounded-3xl shadow-lg border-0 bg-white/80 backdrop-blur-sm">
+          <CardContent className="p-8 text-center">
+            <div className="w-16 h-16 mx-auto mb-4 bg-red-100 rounded-full flex items-center justify-center">
+              <RefreshCw className="w-8 h-8 text-red-600" />
             </div>
-            <Button onClick={() => fetchActivities()} className="flex items-center gap-2">
-              <RefreshCw className="w-4 h-4" />
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Erro ao carregar histórico</h3>
+            <p className="text-gray-600 mb-6">{error}</p>
+            <Button 
+              onClick={() => fetchActivities()} 
+              className="rounded-full px-6 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+            >
+              <RefreshCw className="w-4 h-4 mr-2" />
               Tentar Novamente
             </Button>
           </CardContent>
@@ -164,38 +170,40 @@ const ActivityHistoryPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-6">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-6">
+      <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-6">
             <Button
               variant="outline"
               size="sm"
               onClick={() => navigate('/')}
-              className="flex items-center gap-2 hover:bg-blue-50"
+              className="rounded-full border-2 border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-all duration-200"
             >
-              <ArrowLeft className="w-4 h-4" />
+              <ArrowLeft className="w-4 h-4 mr-2" />
               Voltar
             </Button>
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <Clock className="w-6 h-6 text-blue-600" />
+            
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
+                <Clock className="w-7 h-7 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Histórico de Atividades</h1>
+                <h1 className="text-3xl font-bold text-gray-900 mb-1">Histórico de Atividades</h1>
                 <p className="text-gray-600">Acompanhe todas as mudanças do sistema</p>
               </div>
             </div>
           </div>
+          
           <Button
             variant="outline"
             size="sm"
             onClick={() => fetchActivities()}
             disabled={isLoading}
-            className="flex items-center gap-2"
+            className="rounded-full border-2 border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-all duration-200"
           >
-            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
             {isLoading ? 'Carregando...' : 'Atualizar'}
           </Button>
         </div>
@@ -220,38 +228,44 @@ const ActivityHistoryPage: React.FC = () => {
         />
 
         {/* Tabela de atividades */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <span>Registro de Atividades</span>
-              <span className="text-sm font-normal text-gray-500">
+        <Card className="rounded-3xl shadow-lg border-0 bg-white/80 backdrop-blur-sm overflow-hidden">
+          <CardHeader className="bg-gradient-to-r from-gray-50 to-blue-50 border-b border-gray-100">
+            <CardTitle className="flex items-center justify-between text-xl">
+              <span className="text-gray-900">Registro de Atividades</span>
+              <span className="text-sm font-normal text-gray-500 bg-white rounded-full px-4 py-1.5">
                 {filteredActivities.length} de {activities.length} registros
               </span>
             </CardTitle>
           </CardHeader>
           
-          <CardContent>
+          <CardContent className="p-0">
             {isLoading && (
-              <div className="text-center py-12">
-                <div className="inline-flex items-center gap-2 text-gray-500">
-                  <RefreshCw className="w-5 h-5 animate-spin" />
-                  Carregando histórico...
+              <div className="text-center py-16">
+                <div className="w-16 h-16 mx-auto mb-4 bg-blue-100 rounded-full flex items-center justify-center">
+                  <RefreshCw className="w-8 h-8 text-blue-600 animate-spin" />
                 </div>
+                <p className="text-gray-600 font-medium">Carregando histórico...</p>
               </div>
             )}
             
             {!isLoading && filteredActivities.length === 0 && (
-              <div className="text-center py-12">
-                <div className="text-6xl mb-4">🔍</div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">
+              <div className="text-center py-16">
+                <div className="w-20 h-20 mx-auto mb-6 bg-gray-100 rounded-full flex items-center justify-center">
+                  <Clock className="w-10 h-10 text-gray-400" />
+                </div>
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">
                   Nenhuma atividade encontrada
                 </h3>
-                <p className="text-gray-500 mb-4">
-                  Tente ajustar os filtros para ver mais resultados
+                <p className="text-gray-500 mb-6 max-w-md mx-auto">
+                  Tente ajustar os filtros para ver mais resultados ou aguarde novas atividades serem registradas
                 </p>
                 {activeFiltersCount > 0 && (
-                  <Button variant="outline" onClick={clearAllFilters} className="flex items-center gap-2">
-                    <RefreshCw className="w-4 h-4" />
+                  <Button 
+                    variant="outline" 
+                    onClick={clearAllFilters} 
+                    className="rounded-full border-2 border-gray-200 hover:border-blue-300 hover:bg-blue-50"
+                  >
+                    <RefreshCw className="w-4 h-4 mr-2" />
                     Limpar Filtros
                   </Button>
                 )}
@@ -262,21 +276,22 @@ const ActivityHistoryPage: React.FC = () => {
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
-                    <TableRow className="bg-gray-50">
-                      <TableHead className="w-16 text-center">Ação</TableHead>
-                      <TableHead className="min-w-32">Tipo</TableHead>
-                      <TableHead className="min-w-48">Item</TableHead>
-                      <TableHead className="min-w-96">Detalhes da Mudança</TableHead>
-                      <TableHead className="min-w-32">Usuário</TableHead>
-                      <TableHead className="min-w-40">Data/Hora</TableHead>
+                    <TableRow className="bg-gradient-to-r from-gray-50 to-blue-50 border-b-2 border-blue-100">
+                      <TableHead className="w-16 text-center font-semibold text-gray-700">Ação</TableHead>
+                      <TableHead className="min-w-32 font-semibold text-gray-700">Tipo</TableHead>
+                      <TableHead className="min-w-48 font-semibold text-gray-700">Item</TableHead>
+                      <TableHead className="min-w-96 font-semibold text-gray-700">Detalhes da Mudança</TableHead>
+                      <TableHead className="min-w-32 font-semibold text-gray-700">Usuário</TableHead>
+                      <TableHead className="min-w-40 font-semibold text-gray-700">Data/Hora</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredActivities.map((activity) => (
+                    {filteredActivities.map((activity, index) => (
                       <ActivityTableRow
                         key={activity.id}
                         activity={activity}
                         referenceData={referenceData}
+                        isEven={index % 2 === 0}
                       />
                     ))}
                   </TableBody>
