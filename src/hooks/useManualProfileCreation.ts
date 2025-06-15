@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Profile } from '@/types/auth';
@@ -7,10 +7,18 @@ import { Profile } from '@/types/auth';
 export const useManualProfileCreation = () => {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
+  const creatingRef = useRef<Set<string>>(new Set());
 
   const createProfileIfNotExists = async (userId: string, name: string, email?: string, role = 'developer'): Promise<Profile | null> => {
+    // Evitar chamadas duplicadas para o mesmo usuário
+    if (creatingRef.current.has(userId)) {
+      console.log('[PROFILE CREATION] Already creating profile for user:', userId);
+      return null;
+    }
+
     try {
       setLoading(true);
+      creatingRef.current.add(userId);
       console.log('[PROFILE CREATION] Starting for user:', { userId, name, email, role });
       
       // Verificar se perfil já existe
@@ -103,6 +111,7 @@ export const useManualProfileCreation = () => {
       
       return null;
     } finally {
+      creatingRef.current.delete(userId);
       setLoading(false);
     }
   };

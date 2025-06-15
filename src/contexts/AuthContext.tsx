@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { AuthContextType, Profile } from '@/types/auth';
@@ -14,6 +14,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
   const [initialized, setInitialized] = useState(false);
   const { ensureProfileExists } = useManualProfileCreation();
+  const initializingRef = useRef(false);
 
   const fetchProfile = async (userId: string) => {
     try {
@@ -75,6 +76,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     let mounted = true;
+    
+    // Evitar múltiplas inicializações
+    if (initializingRef.current) {
+      return;
+    }
+    
+    initializingRef.current = true;
 
     const initializeAuth = async () => {
       try {
@@ -104,21 +112,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setLoading(false);
           setInitialized(true);
         }
+      } finally {
+        initializingRef.current = false;
       }
     };
 
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
-      if (!mounted) return;
+      if (!mounted || !initialized) return;
 
       console.log('[AUTH] Auth state changed:', event, newSession?.user?.email);
       
       setSession(newSession);
       setUser(newSession?.user ?? null);
 
-      if (newSession?.user && initialized) {
+      if (newSession?.user) {
         await handleAuthUser(newSession.user);
-      } else if (!newSession?.user) {
+      } else {
         setProfile(null);
         setLoading(false);
       }
@@ -176,6 +186,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setSession(null);
         setProfile(null);
         setInitialized(false);
+        initializingRef.current = false;
       }
       return { error };
     } catch (err: any) {
