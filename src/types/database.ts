@@ -1,4 +1,3 @@
-
 export interface KanbanColumn {
   id: string;
   title: string;
@@ -45,6 +44,9 @@ export interface Task {
   estimated_hours?: number;
   status_image_filenames: string[];
   project_id?: string | null;
+  current_status_start_time?: string | null; // Novo campo para cronometragem
+  last_column_id?: string | null; // Novo campo para controle
+  last_assignee?: string | null; // Novo campo para controle
   created_at: string;
   updated_at: string;
 }
