@@ -1,9 +1,8 @@
-
 import React, { useState } from 'react';
 import { Droppable } from '@hello-pangea/dnd';
 import { Plus } from 'lucide-react';
 import TaskCard from './TaskCard';
-import { KanbanColumn as KanbanColumnType, Task, Tag, TaskTag, Project } from '@/types/database';
+import { KanbanColumn as KanbanColumnType, Task, Tag, TaskTag, Project, Profile } from '@/types/database';
 
 interface KanbanColumnProps {
   column: KanbanColumnType;
@@ -11,6 +10,7 @@ interface KanbanColumnProps {
   tags: Tag[];
   taskTags: TaskTag[];
   projects: Project[];
+  profiles: Profile[]; // Adicionar profiles
   onAddTask: (columnId: string, title: string) => void;
   onTaskClick: (task: Task) => void;
 }
@@ -21,6 +21,7 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
   tags, 
   taskTags, 
   projects,
+  profiles, // Receber profiles
   onAddTask,
   onTaskClick
 }) => {
@@ -103,7 +104,7 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
                 taskTags={taskTags}
                 projects={projects}
                 onClick={() => onTaskClick(task)}
-                teamMembers={[]}
+                teamMembers={profiles} // Passar profiles como teamMembers
               />
             ))}
             {provided.placeholder}
