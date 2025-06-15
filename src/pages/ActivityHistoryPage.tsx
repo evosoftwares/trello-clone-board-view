@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { Clock, ArrowLeft, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -55,9 +54,10 @@ const ActivityHistoryPage: React.FC = () => {
       return acc;
     }, {} as Record<string, number>);
 
-    const mostActiveType = Object.entries(typeCount).reduce((a, b) => 
-      typeCount[a[0]] > typeCount[b[0]] ? a : b
-    )?.[0];
+    const typeEntries = Object.entries(typeCount);
+    const mostActiveType = typeEntries.length > 0 
+      ? typeEntries.reduce((a, b) => typeCount[a[0]] > typeCount[b[0]] ? a : b)[0]
+      : null;
 
     return {
       totalActivities: activities.length,
