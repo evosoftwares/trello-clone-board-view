@@ -345,10 +345,13 @@ const KanbanBoard = () => {
           task={selectedTask}
           isOpen={!!selectedTask}
           onClose={closeTaskModal}
-          teamMembers={profiles} // Passar profiles como teamMembers
+          teamMembers={profiles}
           projects={projects}
+          tags={tags}
+          taskTags={taskTags}
           updateTask={updateTask}
           deleteTask={deleteTask}
+          refreshData={refreshData}
         />
       )}
       
