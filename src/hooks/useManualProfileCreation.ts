@@ -23,7 +23,7 @@ export const useManualProfileCreation = () => {
 
       if (checkError) {
         console.error('[PROFILE CREATION] Error checking existing profile:', checkError);
-        throw checkError;
+        throw new Error(`Erro ao verificar perfil: ${checkError.message}`);
       }
 
       if (existingProfile) {
@@ -51,7 +51,7 @@ export const useManualProfileCreation = () => {
 
       if (insertError) {
         console.error('[PROFILE CREATION] Insert error:', insertError);
-        throw insertError;
+        throw new Error(`Erro ao criar perfil: ${insertError.message}`);
       }
 
       console.log('[PROFILE CREATION] Profile created successfully:', newProfile);
@@ -66,13 +66,15 @@ export const useManualProfileCreation = () => {
     } catch (err: any) {
       console.error('[PROFILE CREATION] Error creating profile:', err);
       
-      // Mensagens de erro mais específicas
+      // Mensagens de erro mais claras
       let errorMessage = 'Erro desconhecido ao criar perfil';
       
       if (err.message?.includes('Failed to fetch')) {
-        errorMessage = 'Erro de conexão com o banco de dados. Verifique sua conexão com internet.';
+        errorMessage = 'Erro de conectividade. Verifique sua conexão com a internet e tente novamente.';
       } else if (err.message?.includes('duplicate key')) {
         errorMessage = 'Perfil já existe para este usuário.';
+      } else if (err.message?.includes('network')) {
+        errorMessage = 'Erro de rede. Verifique sua conexão.';
       } else if (err.message) {
         errorMessage = err.message;
       }
@@ -96,8 +98,14 @@ export const useManualProfileCreation = () => {
     }
 
     console.log('[PROFILE CREATION] Ensuring profile exists for user:', user.id);
-    const name = user.user_metadata?.name || user.email?.split('@')[0] || 'Usuário';
-    return await createProfileIfNotExists(user.id, name, user.email);
+    
+    try {
+      const name = user.user_metadata?.name || user.email?.split('@')[0] || 'Usuário';
+      return await createProfileIfNotExists(user.id, name, user.email);
+    } catch (err: any) {
+      console.error('[PROFILE CREATION] Error in ensureProfileExists:', err);
+      return null;
+    }
   };
 
   return {
