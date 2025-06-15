@@ -1,10 +1,11 @@
+
 import React, { useState } from 'react';
 import { DragDropContext, DropResult } from '@hello-pangea/dnd';
 import { Plus } from 'lucide-react';
 import { useKanbanData } from '@/hooks/useKanbanData';
 import { useProjectContext } from '@/contexts/ProjectContext';
 import KanbanColumn from './KanbanColumn';
-import TaskDetailModal from './modals/TaskDetailModal';
+import { TaskDetailModal } from './modals/TaskDetailModal';
 import TeamMember from './TeamMember';
 import { Task } from '@/types/database';
 
@@ -20,6 +21,8 @@ const KanbanBoard = () => {
     error,
     moveTask,
     createTask,
+    updateTask,
+    deleteTask,
     refreshData
   } = useKanbanData(selectedProjectId);
 
@@ -40,19 +43,13 @@ const KanbanBoard = () => {
     moveTask(
       draggableId,
       source.droppableId,
-      destination.droppableId,
-      source.index,
-      destination.index
+      destination.droppableId
     );
   };
 
   const handleAddTask = (columnId: string, title: string) => {
     console.log('[ADD TASK] Creating task:', { columnId, title });
-    createTask({
-      title,
-      column_id: columnId,
-      project_id: selectedProjectId || undefined
-    });
+    createTask(title, columnId);
   };
 
   // Calcular estatísticas dos membros
@@ -124,8 +121,15 @@ const KanbanBoard = () => {
       {selectedTask && (
         <TaskDetailModal
           task={selectedTask}
+          isOpen={true}
           onClose={() => setSelectedTask(null)}
-          onUpdate={refreshData}
+          teamMembers={profiles}
+          projects={[]}
+          tags={tags}
+          taskTags={taskTags}
+          updateTask={updateTask}
+          deleteTask={deleteTask}
+          refreshData={refreshData}
         />
       )}
     </div>
