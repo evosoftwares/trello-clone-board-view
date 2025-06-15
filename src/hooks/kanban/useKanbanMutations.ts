@@ -1,3 +1,4 @@
+
 import { useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Task } from '@/types/database';
@@ -144,12 +145,15 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
     setTasks(currentTasks => applyLocalChanges(currentTasks, updates));
 
     try {
-      // 2. Usar transação para garantir atomicidade
-      const { error: transactionError } = await supabase.rpc('update_task_with_time_tracking', {
-        p_task_id: taskId,
-        p_updates: updates,
-        p_column_changed: taskToMove.column_id !== newColumnId
-      });
+      // 2. Usar stored procedure através de query SQL direta
+      const { error: transactionError } = await supabase.rpc(
+        'update_task_with_time_tracking' as any,
+        {
+          p_task_id: taskId,
+          p_updates: updates,
+          p_column_changed: taskToMove.column_id !== newColumnId
+        }
+      );
 
       if (transactionError) {
         throw transactionError;
@@ -241,11 +245,14 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
     try {
       // Usar função do banco para garantir timestamp preciso quando houver mudança de responsável
       if (updates.assignee !== undefined && originalTask?.assignee !== updates.assignee) {
-        const { error } = await supabase.rpc('update_task_assignee_with_time_tracking', {
-          p_task_id: taskId,
-          p_new_assignee: updates.assignee,
-          p_other_updates: { ...updates, assignee: undefined }
-        });
+        const { error } = await supabase.rpc(
+          'update_task_assignee_with_time_tracking' as any,
+          {
+            p_task_id: taskId,
+            p_new_assignee: updates.assignee,
+            p_other_updates: { ...updates, assignee: undefined }
+          }
+        );
 
         if (error) throw error;
       } else {
