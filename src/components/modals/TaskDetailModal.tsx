@@ -451,7 +451,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
             </TabsContent>
             
             <TabsContent value="comments" className="mt-6">
-              <TaskComments taskId={task.id} teamMembers={teamMembers} />
+              <TaskComments taskId={task.id} allProfiles={teamMembers} />
             </TabsContent>
           </Tabs>
         </div>
