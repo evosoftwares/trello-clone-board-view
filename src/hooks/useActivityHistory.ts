@@ -1,66 +1,53 @@
 
 import { useState, useEffect, useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { ActivityLog } from '@/types/database';
 
 export const useActivityHistory = (entityType?: string, entityId?: string) => {
-  const [activities, setActivities] = useState<ActivityLog[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [filterType, setFilterType] = useState<string>('all');
+  const [filterAction, setFilterAction] = useState<string>('all');
+  const queryClient = useQueryClient();
 
-  const fetchActivities = useCallback(async (limit = 50) => {
-    setLoading(true);
-    setError(null);
-    
-    try {
-      let query = supabase
-        .from('activity_log')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(limit);
+  const fetchActivities = useCallback(async (limit = 100) => {
+    let query = supabase
+      .from('activity_log')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(limit);
 
-      if (entityType && entityId) {
-        query = query.eq('entity_type', entityType).eq('entity_id', entityId);
-      }
-
-      const { data, error } = await query;
-
-      if (error) throw error;
-      
-      setActivities((data || []) as ActivityLog[]);
-    } catch (err: any) {
-      console.error('Error fetching activity history:', err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
+    if (entityType && entityId) {
+      query = query.eq('entity_type', entityType).eq('entity_id', entityId);
     }
+
+    const { data, error } = await query;
+    if (error) throw error;
+    
+    return (data || []) as ActivityLog[];
   }, [entityType, entityId]);
 
+  const { 
+    data: activities = [], 
+    isLoading: loading, 
+    error,
+    refetch
+  } = useQuery({
+    queryKey: ['activity_log', entityType, entityId],
+    queryFn: () => fetchActivities(),
+    refetchOnWindowFocus: false,
+    staleTime: 30 * 1000, // 30 seconds
+  });
+
   const fetchEntityHistory = useCallback(async (type: string, id: string, limit = 50) => {
-    setLoading(true);
-    setError(null);
-    
-    try {
-      const { data, error } = await supabase.rpc('get_entity_history', {
-        p_entity_type: type,
-        p_entity_id: id,
-        p_limit: limit
-      });
+    const { data, error } = await supabase.rpc('get_entity_history', {
+      p_entity_type: type,
+      p_entity_id: id,
+      p_limit: limit
+    });
 
-      if (error) throw error;
-      
-      setActivities((data || []) as ActivityLog[]);
-    } catch (err: any) {
-      console.error('Error fetching entity history:', err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+    if (error) throw error;
+    return (data || []) as ActivityLog[];
   }, []);
-
-  useEffect(() => {
-    fetchActivities();
-  }, [fetchActivities]);
 
   // Configurar realtime subscription
   useEffect(() => {
@@ -70,7 +57,8 @@ export const useActivityHistory = (entityType?: string, entityId?: string) => {
         { event: '*', schema: 'public', table: 'activity_log' }, 
         (payload) => {
           console.log('Activity log change:', payload);
-          fetchActivities(); // Recarregar dados quando houver mudanças
+          // Invalidar e refetch os dados
+          queryClient.invalidateQueries({ queryKey: ['activity_log'] });
         }
       )
       .subscribe();
@@ -78,13 +66,24 @@ export const useActivityHistory = (entityType?: string, entityId?: string) => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [fetchActivities]);
+  }, [queryClient]);
+
+  // Filtrar atividades localmente
+  const filteredActivities = activities.filter(activity => {
+    const typeMatch = filterType === 'all' || activity.entity_type === filterType;
+    const actionMatch = filterAction === 'all' || activity.action_type === filterAction;
+    return typeMatch && actionMatch;
+  });
 
   return {
-    activities,
+    activities: filteredActivities,
     loading,
-    error,
-    fetchActivities,
-    fetchEntityHistory
+    error: error?.message || null,
+    fetchActivities: refetch,
+    fetchEntityHistory,
+    filterType,
+    setFilterType,
+    filterAction,
+    setFilterAction,
   };
 };
