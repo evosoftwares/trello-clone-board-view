@@ -36,6 +36,7 @@ export const TagSelector: React.FC<TagSelectorProps> = ({
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newTagName, setNewTagName] = useState('');
   const [newTagColor, setNewTagColor] = useState('#3B82F6');
+  const [isCreating, setIsCreating] = useState(false);
   const [recentTags, setRecentTags] = useState<string[]>(() => {
     const saved = localStorage.getItem('recentTags');
     return saved ? JSON.parse(saved) : [];
@@ -64,23 +65,40 @@ export const TagSelector: React.FC<TagSelectorProps> = ({
   const handleToggleTag = async (tagId: string) => {
     const isSelected = currentTaskTagIds.includes(tagId);
     
-    if (isSelected) {
-      await onRemoveTagFromTask(taskId, tagId);
-    } else {
-      await onAddTagToTask(taskId, tagId);
-      // Add to recent tags
-      const updatedRecent = [tagId, ...recentTags.filter(id => id !== tagId)].slice(0, 5);
-      setRecentTags(updatedRecent);
-      localStorage.setItem('recentTags', JSON.stringify(updatedRecent));
+    try {
+      if (isSelected) {
+        await onRemoveTagFromTask(taskId, tagId);
+      } else {
+        await onAddTagToTask(taskId, tagId);
+        // Add to recent tags
+        const updatedRecent = [tagId, ...recentTags.filter(id => id !== tagId)].slice(0, 5);
+        setRecentTags(updatedRecent);
+        localStorage.setItem('recentTags', JSON.stringify(updatedRecent));
+      }
+    } catch (error) {
+      console.error('Error toggling tag:', error);
     }
   };
 
   const handleCreateTag = async () => {
-    if (newTagName.trim()) {
+    if (!newTagName.trim()) {
+      console.warn('[TAG SELECTOR] Cannot create tag with empty name');
+      return;
+    }
+
+    console.log('[TAG SELECTOR] Creating tag:', { name: newTagName.trim(), color: newTagColor });
+    setIsCreating(true);
+    
+    try {
       await onCreateTag(newTagName.trim(), newTagColor);
+      console.log('[TAG SELECTOR] Tag created successfully');
       setNewTagName('');
       setNewTagColor('#3B82F6');
       setShowCreateForm(false);
+    } catch (error) {
+      console.error('[TAG SELECTOR] Failed to create tag:', error);
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -190,6 +208,7 @@ export const TagSelector: React.FC<TagSelectorProps> = ({
                     if (e.key === 'Escape') setShowCreateForm(false);
                   }}
                   autoFocus
+                  disabled={isCreating}
                 />
               </div>
               <div className="flex gap-2">
@@ -197,14 +216,20 @@ export const TagSelector: React.FC<TagSelectorProps> = ({
                   size="sm"
                   onClick={handleCreateTag}
                   className="flex-1 h-8 rounded-xl"
+                  disabled={isCreating || !newTagName.trim()}
                 >
-                  Criar
+                  {isCreating ? 'Criando...' : 'Criar'}
                 </Button>
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => setShowCreateForm(false)}
+                  onClick={() => {
+                    setShowCreateForm(false);
+                    setNewTagName('');
+                    setNewTagColor('#3B82F6');
+                  }}
                   className="flex-1 h-8 rounded-xl"
+                  disabled={isCreating}
                 >
                   Cancelar
                 </Button>

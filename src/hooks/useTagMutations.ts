@@ -11,21 +11,36 @@ export const useTagMutations = () => {
   const { user } = useAuth();
 
   const createTag = useCallback(async (name: string, color: string) => {
+    console.log('[TAG CREATION] Starting with:', { name, color, user: user?.id });
+    
     if (!user) {
+      console.error('[TAG CREATION] No user found');
       toast({ title: 'Erro', description: 'Usuário não autenticado', variant: 'destructive' });
       return;
     }
 
     try {
+      console.log('[TAG CREATION] Calling Supabase insert...');
       const { data, error } = await supabase
         .from('tags')
-        .insert({ name, color })
+        .insert({ name: name.trim(), color })
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('[TAG CREATION] Supabase error:', error);
+        throw error;
+      }
 
-      await logActivity('tag', data.id, 'create', null, data);
+      console.log('[TAG CREATION] Success:', data);
+
+      try {
+        await logActivity('tag', data.id, 'create', null, data);
+        console.log('[TAG CREATION] Activity logged successfully');
+      } catch (logError) {
+        console.warn('[TAG CREATION] Failed to log activity:', logError);
+        // Continue execution even if logging fails
+      }
 
       toast({
         title: 'Sucesso',
@@ -35,10 +50,10 @@ export const useTagMutations = () => {
 
       return data;
     } catch (error: any) {
-      console.error('Error creating tag:', error);
+      console.error('[TAG CREATION] Error:', error);
       toast({
         title: 'Erro',
-        description: 'Falha ao criar etiqueta',
+        description: error.message || 'Falha ao criar etiqueta',
         variant: 'destructive'
       });
       throw error;
@@ -46,6 +61,8 @@ export const useTagMutations = () => {
   }, [user, toast, logActivity]);
 
   const updateTag = useCallback(async (tagId: string, name: string, color: string) => {
+    console.log('[TAG UPDATE] Starting with:', { tagId, name, color, user: user?.id });
+    
     if (!user) {
       toast({ title: 'Erro', description: 'Usuário não autenticado', variant: 'destructive' });
       return;
@@ -61,14 +78,20 @@ export const useTagMutations = () => {
 
       const { data, error } = await supabase
         .from('tags')
-        .update({ name, color })
+        .update({ name: name.trim(), color })
         .eq('id', tagId)
         .select()
         .single();
 
       if (error) throw error;
 
-      await logActivity('tag', tagId, 'update', oldData, data);
+      console.log('[TAG UPDATE] Success:', data);
+
+      try {
+        await logActivity('tag', tagId, 'update', oldData, data);
+      } catch (logError) {
+        console.warn('[TAG UPDATE] Failed to log activity:', logError);
+      }
 
       toast({
         title: 'Sucesso',
@@ -78,7 +101,7 @@ export const useTagMutations = () => {
 
       return data;
     } catch (error: any) {
-      console.error('Error updating tag:', error);
+      console.error('[TAG UPDATE] Error:', error);
       toast({
         title: 'Erro',
         description: 'Falha ao atualizar etiqueta',
@@ -109,7 +132,11 @@ export const useTagMutations = () => {
 
       if (error) throw error;
 
-      await logActivity('tag', tagId, 'delete', oldData, null);
+      try {
+        await logActivity('tag', tagId, 'delete', oldData, null);
+      } catch (logError) {
+        console.warn('[TAG DELETE] Failed to log activity:', logError);
+      }
 
       toast({
         title: 'Sucesso',
@@ -117,7 +144,7 @@ export const useTagMutations = () => {
         className: 'bg-red-50 border-red-200 text-red-900'
       });
     } catch (error: any) {
-      console.error('Error deleting tag:', error);
+      console.error('[TAG DELETE] Error:', error);
       toast({
         title: 'Erro',
         description: 'Falha ao remover etiqueta',
@@ -128,6 +155,8 @@ export const useTagMutations = () => {
   }, [user, toast, logActivity]);
 
   const addTagToTask = useCallback(async (taskId: string, tagId: string) => {
+    console.log('[ADD TAG TO TASK] Starting with:', { taskId, tagId, user: user?.id });
+    
     if (!user) {
       toast({ title: 'Erro', description: 'Usuário não autenticado', variant: 'destructive' });
       return;
@@ -140,20 +169,25 @@ export const useTagMutations = () => {
         .select()
         .single();
 
-      if (error) throw error;
-
-      return data;
-    } catch (error: any) {
-      // Ignore duplicate key errors (tag already assigned)
-      if (!error.message?.includes('duplicate key')) {
-        console.error('Error adding tag to task:', error);
-        toast({
-          title: 'Erro',
-          description: 'Falha ao adicionar etiqueta à tarefa',
-          variant: 'destructive'
-        });
+      if (error) {
+        // Check if it's a duplicate key error
+        if (error.message?.includes('duplicate key') || error.code === '23505') {
+          console.log('[ADD TAG TO TASK] Tag already assigned, ignoring');
+          return;
+        }
         throw error;
       }
+
+      console.log('[ADD TAG TO TASK] Success:', data);
+      return data;
+    } catch (error: any) {
+      console.error('[ADD TAG TO TASK] Error:', error);
+      toast({
+        title: 'Erro',
+        description: 'Falha ao adicionar etiqueta à tarefa',
+        variant: 'destructive'
+      });
+      throw error;
     }
   }, [user, toast]);
 
@@ -172,7 +206,7 @@ export const useTagMutations = () => {
 
       if (error) throw error;
     } catch (error: any) {
-      console.error('Error removing tag from task:', error);
+      console.error('[REMOVE TAG FROM TASK] Error:', error);
       toast({
         title: 'Erro',
         description: 'Falha ao remover etiqueta da tarefa',
