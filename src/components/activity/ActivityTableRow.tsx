@@ -25,44 +25,68 @@ export const ActivityTableRow: React.FC<ActivityTableRowProps> = ({
   const getActionIcon = (action: string) => {
     switch (action) {
       case 'create':
-        return <Plus className="w-4 h-4 text-green-600" />;
+        return <div className="p-2 bg-green-100 rounded-full"><Plus className="w-4 h-4 text-green-600" /></div>;
       case 'update':
-        return <Edit className="w-4 h-4 text-blue-600" />;
+        return <div className="p-2 bg-blue-100 rounded-full"><Edit className="w-4 h-4 text-blue-600" /></div>;
       case 'delete':
-        return <Trash2 className="w-4 h-4 text-red-600" />;
+        return <div className="p-2 bg-red-100 rounded-full"><Trash2 className="w-4 h-4 text-red-600" /></div>;
       case 'move':
-        return <Move className="w-4 h-4 text-purple-600" />;
+        return <div className="p-2 bg-purple-100 rounded-full"><Move className="w-4 h-4 text-purple-600" /></div>;
       default:
-        return <Clock className="w-4 h-4 text-gray-600" />;
+        return <div className="p-2 bg-gray-100 rounded-full"><Clock className="w-4 h-4 text-gray-600" /></div>;
     }
   };
 
   const getActionColor = (action: string) => {
     switch (action) {
       case 'create':
-        return 'bg-green-100 text-green-800';
+        return 'bg-green-50 text-green-700 border-green-200';
       case 'update':
-        return 'bg-blue-100 text-blue-800';
+        return 'bg-blue-50 text-blue-700 border-blue-200';
       case 'delete':
-        return 'bg-red-100 text-red-800';
+        return 'bg-red-50 text-red-700 border-red-200';
       case 'move':
-        return 'bg-purple-100 text-purple-800';
+        return 'bg-purple-50 text-purple-700 border-purple-200';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-gray-50 text-gray-700 border-gray-200';
+    }
+  };
+
+  const getEntityColor = (entityType: string) => {
+    switch (entityType) {
+      case 'task':
+        return 'bg-cyan-50 text-cyan-700 border-cyan-200';
+      case 'project':
+        return 'bg-orange-50 text-orange-700 border-orange-200';
+      case 'team_member':
+        return 'bg-pink-50 text-pink-700 border-pink-200';
+      case 'column':
+        return 'bg-indigo-50 text-indigo-700 border-indigo-200';
+      case 'tag':
+        return 'bg-yellow-50 text-yellow-700 border-yellow-200';
+      default:
+        return 'bg-gray-50 text-gray-700 border-gray-200';
     }
   };
 
   const formatDateTime = (dateString: string) => {
     const date = new Date(dateString);
-    const timeStr = date.toLocaleTimeString('pt-BR', {
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-    const dateStr = date.toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit'
-    });
-    return `${timeStr} - ${dateStr}`;
+    const now = new Date();
+    const diffHours = Math.abs(now.getTime() - date.getTime()) / (1000 * 60 * 60);
+    
+    if (diffHours < 1) {
+      const diffMinutes = Math.floor(diffHours * 60);
+      return `há ${diffMinutes} min`;
+    } else if (diffHours < 24) {
+      return `há ${Math.floor(diffHours)}h`;
+    } else {
+      return date.toLocaleString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    }
   };
 
   const getEntityTitle = () => {
@@ -78,20 +102,17 @@ export const ActivityTableRow: React.FC<ActivityTableRowProps> = ({
     if (activity.old_data?.name) {
       return activity.old_data.name;
     }
-    return `${getEntityTypeName(activity.entity_type)} (${activity.entity_id.slice(0, 8)})`;
+    return `${getEntityTypeName(activity.entity_type)}`;
   };
 
   const getUserName = () => {
-    // Priorizar user_id sobre changed_by para consistência
     const userId = activity.user_id || activity.changed_by;
     if (!userId) return 'Sistema';
     
-    // Se temos o user_id, usar os dados do perfil
     if (activity.user_id && profiles[activity.user_id]) {
       return profiles[activity.user_id];
     }
     
-    // Fallback para changed_by se não temos o user_id ou dados do perfil
     if (activity.changed_by) {
       return activity.changed_by;
     }
@@ -100,28 +121,26 @@ export const ActivityTableRow: React.FC<ActivityTableRowProps> = ({
   };
 
   return (
-    <TableRow className="hover:bg-gray-50">
-      <TableCell>
-        <div className="flex items-center justify-center">
-          {getActionIcon(activity.action_type)}
-        </div>
+    <TableRow className="hover:bg-blue-50/30 transition-colors">
+      <TableCell className="text-center">
+        {getActionIcon(activity.action_type)}
       </TableCell>
       <TableCell>
-        <div className="flex flex-col gap-1">
-          <Badge className={getActionColor(activity.action_type)}>
+        <div className="flex flex-col gap-2">
+          <Badge className={`${getActionColor(activity.action_type)} font-medium`}>
             {getActionTypeName(activity.action_type)}
           </Badge>
-          <Badge variant="outline" className="text-xs">
+          <Badge variant="outline" className={`${getEntityColor(activity.entity_type)} text-xs`}>
             {getEntityTypeName(activity.entity_type)}
           </Badge>
         </div>
       </TableCell>
       <TableCell>
-        <div className="font-medium text-gray-900">
+        <div className="font-medium text-gray-900 mb-1">
           {getEntityTitle()}
         </div>
-        <div className="text-xs text-gray-500">
-          ID: {activity.entity_id.slice(0, 8)}...
+        <div className="text-xs text-gray-500 font-mono">
+          #{activity.entity_id.slice(0, 8)}
         </div>
       </TableCell>
       <TableCell>
@@ -131,13 +150,17 @@ export const ActivityTableRow: React.FC<ActivityTableRowProps> = ({
         />
       </TableCell>
       <TableCell>
-        <div className="flex items-center gap-1 text-sm text-gray-600">
-          <User className="w-3 h-3" />
-          {getUserName()}
+        <div className="flex items-center gap-2">
+          <div className="p-1 bg-gray-100 rounded-full">
+            <User className="w-3 h-3 text-gray-600" />
+          </div>
+          <span className="text-sm text-gray-700 font-medium">
+            {getUserName()}
+          </span>
         </div>
       </TableCell>
       <TableCell>
-        <div className="text-sm text-gray-600">
+        <div className="text-sm text-gray-600 font-medium">
           {formatDateTime(activity.created_at)}
         </div>
       </TableCell>

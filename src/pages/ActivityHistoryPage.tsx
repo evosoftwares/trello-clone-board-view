@@ -1,12 +1,11 @@
 
-import React from 'react';
-import { Clock, Filter, ArrowLeft } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Clock, ArrowLeft, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useActivityHistory } from '@/hooks/useActivityHistory';
 import { useReferenceData } from '@/hooks/useReferenceData';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Table,
   TableBody,
@@ -15,10 +14,16 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { ActivityTableRow } from '@/components/activity/ActivityTableRow';
-import { ENTITY_TYPE_TRANSLATIONS, ACTION_TYPE_TRANSLATIONS } from '@/utils/activityTranslations';
+import { ActivityFilters } from '@/components/activity/ActivityFilters';
+import { ActivityStats } from '@/components/activity/ActivityStats';
+import { ENTITY_TYPE_TRANSLATIONS } from '@/utils/activityTranslations';
 
 const ActivityHistoryPage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchTerm, setSearchTerm] = useState('');
+  const [dateRange, setDateRange] = useState('all');
+  const [userFilter, setUserFilter] = useState('all');
+  
   const { 
     activities, 
     loading, 
@@ -34,19 +39,124 @@ const ActivityHistoryPage: React.FC = () => {
 
   const isLoading = loading || referenceLoading;
 
+  // Calcular estatísticas
+  const stats = useMemo(() => {
+    const today = new Date().toDateString();
+    const todayActivities = activities.filter(
+      activity => new Date(activity.created_at).toDateString() === today
+    ).length;
+
+    const uniqueUsers = new Set(
+      activities.map(activity => activity.user_id || activity.changed_by).filter(Boolean)
+    ).size;
+
+    const typeCount = activities.reduce((acc, activity) => {
+      acc[activity.entity_type] = (acc[activity.entity_type] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    const mostActiveType = Object.entries(typeCount).reduce((a, b) => 
+      typeCount[a[0]] > typeCount[b[0]] ? a : b
+    )?.[0];
+
+    return {
+      totalActivities: activities.length,
+      todayActivities,
+      activeUsers: uniqueUsers,
+      mostActiveType: mostActiveType ? ENTITY_TYPE_TRANSLATIONS[mostActiveType as keyof typeof ENTITY_TYPE_TRANSLATIONS] : 'N/A'
+    };
+  }, [activities]);
+
+  // Filtrar atividades com base nos filtros avançados
+  const filteredActivities = useMemo(() => {
+    let filtered = activities;
+
+    // Filtro por texto
+    if (searchTerm) {
+      filtered = filtered.filter(activity => {
+        const title = activity.new_data?.title || activity.old_data?.title || '';
+        const name = activity.new_data?.name || activity.old_data?.name || '';
+        const description = activity.new_data?.description || activity.old_data?.description || '';
+        
+        return (
+          title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          description.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+      });
+    }
+
+    // Filtro por período
+    if (dateRange !== 'all') {
+      const now = new Date();
+      const filterDate = new Date();
+      
+      switch (dateRange) {
+        case 'today':
+          filterDate.setHours(0, 0, 0, 0);
+          break;
+        case 'yesterday':
+          filterDate.setDate(filterDate.getDate() - 1);
+          filterDate.setHours(0, 0, 0, 0);
+          break;
+        case 'week':
+          filterDate.setDate(filterDate.getDate() - 7);
+          break;
+        case 'month':
+          filterDate.setMonth(filterDate.getMonth() - 1);
+          break;
+        case 'quarter':
+          filterDate.setMonth(filterDate.getMonth() - 3);
+          break;
+      }
+
+      filtered = filtered.filter(activity => {
+        const activityDate = new Date(activity.created_at);
+        if (dateRange === 'today') {
+          return activityDate.toDateString() === now.toDateString();
+        } else if (dateRange === 'yesterday') {
+          const yesterday = new Date(now);
+          yesterday.setDate(yesterday.getDate() - 1);
+          return activityDate.toDateString() === yesterday.toDateString();
+        }
+        return activityDate >= filterDate;
+      });
+    }
+
+    return filtered;
+  }, [activities, searchTerm, dateRange]);
+
+  // Contar filtros ativos
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (filterType !== 'all') count++;
+    if (filterAction !== 'all') count++;
+    if (searchTerm) count++;
+    if (dateRange !== 'all') count++;
+    if (userFilter !== 'all') count++;
+    return count;
+  }, [filterType, filterAction, searchTerm, dateRange, userFilter]);
+
+  const clearAllFilters = () => {
+    setFilterType('all');
+    setFilterAction('all');
+    setSearchTerm('');
+    setDateRange('all');
+    setUserFilter('all');
+  };
+
   if (error) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-6">
-        <Card>
-          <CardContent className="p-6">
-            <div className="text-center text-red-600">
-              Erro ao carregar histórico: {error}
+        <Card className="max-w-md mx-auto">
+          <CardContent className="p-6 text-center">
+            <div className="text-red-600 mb-4">
+              ❌ Erro ao carregar histórico: {error}
             </div>
-            <div className="text-center mt-4">
-              <Button onClick={() => fetchActivities()}>
-                Tentar Novamente
-              </Button>
-            </div>
+            <Button onClick={() => fetchActivities()} className="flex items-center gap-2">
+              <RefreshCw className="w-4 h-4" />
+              Tentar Novamente
+            </Button>
           </CardContent>
         </Card>
       </div>
@@ -56,93 +166,113 @@ const ActivityHistoryPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-6">
       <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate('/')}
+              className="flex items-center gap-2 hover:bg-blue-50"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Voltar
+            </Button>
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <Clock className="w-6 h-6 text-blue-600" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Histórico de Atividades</h1>
+                <p className="text-gray-600">Acompanhe todas as mudanças do sistema</p>
+              </div>
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => fetchActivities()}
+            disabled={isLoading}
+            className="flex items-center gap-2"
+          >
+            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+            {isLoading ? 'Carregando...' : 'Atualizar'}
+          </Button>
+        </div>
+
+        {/* Estatísticas */}
+        <ActivityStats {...stats} />
+
+        {/* Filtros */}
+        <ActivityFilters
+          filterType={filterType}
+          setFilterType={setFilterType}
+          filterAction={filterAction}
+          setFilterAction={setFilterAction}
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
+          dateRange={dateRange}
+          setDateRange={setDateRange}
+          userFilter={userFilter}
+          setUserFilter={setUserFilter}
+          onClearFilters={clearAllFilters}
+          activeFiltersCount={activeFiltersCount}
+        />
+
+        {/* Tabela de atividades */}
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => navigate('/')}
-                  className="flex items-center gap-2"
-                >
-                  <ArrowLeft className="w-4 h-4" />
-                  Voltar
-                </Button>
-                <CardTitle className="flex items-center gap-2">
-                  <Clock className="w-5 h-5" />
-                  Histórico Completo de Atividades
-                </CardTitle>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => fetchActivities()}
-                disabled={isLoading}
-              >
-                {isLoading ? 'Carregando...' : 'Atualizar'}
-              </Button>
-            </div>
-            
-            {/* Filtros */}
-            <div className="flex gap-4 mt-4">
-              <div className="flex items-center gap-2">
-                <Filter className="w-4 h-4" />
-                <Select value={filterType} onValueChange={setFilterType}>
-                  <SelectTrigger className="w-40">
-                    <SelectValue placeholder="Tipo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos os tipos</SelectItem>
-                    {Object.entries(ENTITY_TYPE_TRANSLATIONS).map(([key, value]) => (
-                      <SelectItem key={key} value={key}>{value}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <Select value={filterAction} onValueChange={setFilterAction}>
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Ação" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas as ações</SelectItem>
-                  {Object.entries(ACTION_TYPE_TRANSLATIONS).map(([key, value]) => (
-                    <SelectItem key={key} value={key}>{value}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <CardTitle className="flex items-center justify-between">
+              <span>Registro de Atividades</span>
+              <span className="text-sm font-normal text-gray-500">
+                {filteredActivities.length} de {activities.length} registros
+              </span>
+            </CardTitle>
           </CardHeader>
           
           <CardContent>
             {isLoading && (
-              <div className="text-center py-8 text-gray-500">
-                Carregando histórico...
+              <div className="text-center py-12">
+                <div className="inline-flex items-center gap-2 text-gray-500">
+                  <RefreshCw className="w-5 h-5 animate-spin" />
+                  Carregando histórico...
+                </div>
               </div>
             )}
             
-            {!isLoading && activities.length === 0 && (
-              <div className="text-center py-8 text-gray-500">
-                Nenhuma atividade encontrada com os filtros aplicados.
+            {!isLoading && filteredActivities.length === 0 && (
+              <div className="text-center py-12">
+                <div className="text-6xl mb-4">🔍</div>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  Nenhuma atividade encontrada
+                </h3>
+                <p className="text-gray-500 mb-4">
+                  Tente ajustar os filtros para ver mais resultados
+                </p>
+                {activeFiltersCount > 0 && (
+                  <Button variant="outline" onClick={clearAllFilters} className="flex items-center gap-2">
+                    <RefreshCw className="w-4 h-4" />
+                    Limpar Filtros
+                  </Button>
+                )}
               </div>
             )}
             
-            {!isLoading && activities.length > 0 && (
+            {!isLoading && filteredActivities.length > 0 && (
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-12">Ação</TableHead>
-                      <TableHead>Tipo</TableHead>
-                      <TableHead>Item</TableHead>
-                      <TableHead className="min-w-96">Mudanças Específicas</TableHead>
-                      <TableHead>Usuário</TableHead>
-                      <TableHead>Data/Hora</TableHead>
+                    <TableRow className="bg-gray-50">
+                      <TableHead className="w-16 text-center">Ação</TableHead>
+                      <TableHead className="min-w-32">Tipo</TableHead>
+                      <TableHead className="min-w-48">Item</TableHead>
+                      <TableHead className="min-w-96">Detalhes da Mudança</TableHead>
+                      <TableHead className="min-w-32">Usuário</TableHead>
+                      <TableHead className="min-w-40">Data/Hora</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {activities.map((activity) => (
+                    {filteredActivities.map((activity) => (
                       <ActivityTableRow
                         key={activity.id}
                         activity={activity}
