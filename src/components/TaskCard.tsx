@@ -15,6 +15,7 @@ interface TaskCardProps {
   projects: Project[];
   tags: TagType[];
   taskTags: { task_id: string; tag_id: string }[];
+  columns: { id: string; title: string }[];
 }
 
 const TaskCard: React.FC<TaskCardProps> = ({ 
@@ -24,7 +25,8 @@ const TaskCard: React.FC<TaskCardProps> = ({
   teamMembers, 
   projects, 
   tags, 
-  taskTags 
+  taskTags,
+  columns 
 }) => {
   // Encontrar o nome do responsável
   const assignee = teamMembers.find(member => member.id === task.assignee);
@@ -37,8 +39,15 @@ const TaskCard: React.FC<TaskCardProps> = ({
   const taskTagIds = taskTags.filter(tt => tt.task_id === task.id).map(tt => tt.tag_id);
   const taskTagList = tags.filter(tag => taskTagIds.includes(tag.id));
 
+  // Verificar se a tarefa está na coluna "Concluído"
+  const currentColumn = columns.find(col => col.id === task.column_id);
+  const isCompleted = currentColumn?.title?.toLowerCase().includes('concluído') || 
+                     currentColumn?.title?.toLowerCase().includes('concluido') ||
+                     currentColumn?.title?.toLowerCase().includes('completed') ||
+                     currentColumn?.title?.toLowerCase().includes('done');
+
   return (
-    <Draggable draggableId={task.id} index={index}>
+    <Draggable draggableId={task.id} index={index} isDragDisabled={isCompleted}>
       {(provided, snapshot) => (
         <div
           ref={provided.innerRef}
@@ -46,14 +55,16 @@ const TaskCard: React.FC<TaskCardProps> = ({
           {...provided.dragHandleProps}
           className={`bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-3 cursor-pointer transition-all duration-200 hover:shadow-md hover:border-blue-300 ${
             snapshot.isDragging ? 'rotate-2 shadow-lg' : ''
-          }`}
+          } ${isCompleted ? 'opacity-75 bg-gray-50' : ''}`}
           onClick={onClick}
         >
           <div className="space-y-3">
             {/* Header: Título e Projeto */}
             <div className="space-y-2">
               <div className="flex items-start justify-between gap-2">
-                <h3 className="font-semibold text-gray-900 text-sm leading-tight line-clamp-2 flex-1">
+                <h3 className={`font-semibold text-sm leading-tight line-clamp-2 flex-1 ${
+                  isCompleted ? 'text-gray-600' : 'text-gray-900'
+                }`}>
                   {task.title}
                 </h3>
                 {/* Complexidade no canto superior direito */}
@@ -80,15 +91,19 @@ const TaskCard: React.FC<TaskCardProps> = ({
               )}
             </div>
 
-            {/* Cronômetro de tempo na coluna atual */}
-            <TaskTimer 
-              startTime={task.current_status_start_time} 
-              className="bg-blue-50 text-blue-600 px-2 py-1 rounded-md"
-            />
+            {/* Cronômetro de tempo na coluna atual - Oculto se concluído */}
+            {!isCompleted && (
+              <TaskTimer 
+                startTime={task.current_status_start_time} 
+                className="bg-blue-50 text-blue-600 px-2 py-1 rounded-md"
+              />
+            )}
 
             {/* Descrição */}
             {task.description && (
-              <p className="text-xs text-gray-600 line-clamp-2">
+              <p className={`text-xs line-clamp-2 ${
+                isCompleted ? 'text-gray-500' : 'text-gray-600'
+              }`}>
                 {task.description}
               </p>
             )}
@@ -118,7 +133,9 @@ const TaskCard: React.FC<TaskCardProps> = ({
             {/* Footer: Métricas e Responsável */}
             <div className="flex items-center justify-between pt-1">
               {/* Métricas à esquerda */}
-              <div className="flex items-center space-x-3 text-xs text-gray-500">
+              <div className={`flex items-center space-x-3 text-xs ${
+                isCompleted ? 'text-gray-400' : 'text-gray-500'
+              }`}>
                 {/* Pontos de função */}
                 {task.function_points > 0 && (
                   <div className="flex items-center gap-1">
@@ -147,7 +164,9 @@ const TaskCard: React.FC<TaskCardProps> = ({
 
               {/* Responsável à direita */}
               {assigneeName && (
-                <div className="flex items-center gap-1 text-xs text-gray-600">
+                <div className={`flex items-center gap-1 text-xs ${
+                  isCompleted ? 'text-gray-500' : 'text-gray-600'
+                }`}>
                   <div className="w-5 h-5 bg-gray-200 rounded-full flex items-center justify-center">
                     <User className="w-3 h-3" />
                   </div>
@@ -155,6 +174,16 @@ const TaskCard: React.FC<TaskCardProps> = ({
                 </div>
               )}
             </div>
+
+            {/* Indicador visual de tarefa concluída */}
+            {isCompleted && (
+              <div className="flex items-center justify-center pt-2">
+                <div className="flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full">
+                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                  <span className="font-medium">Concluída</span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

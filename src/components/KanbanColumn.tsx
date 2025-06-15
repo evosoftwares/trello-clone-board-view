@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Droppable } from '@hello-pangea/dnd';
 import { Plus } from 'lucide-react';
@@ -10,7 +11,8 @@ interface KanbanColumnProps {
   tags: Tag[];
   taskTags: TaskTag[];
   projects: Project[];
-  profiles: Profile[]; // Adicionar profiles
+  profiles: Profile[];
+  columns: KanbanColumnType[]; // Adicionar todas as colunas
   onAddTask: (columnId: string, title: string) => void;
   onTaskClick: (task: Task) => void;
 }
@@ -21,7 +23,8 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
   tags, 
   taskTags, 
   projects,
-  profiles, // Receber profiles
+  profiles,
+  columns, // Receber todas as colunas
   onAddTask,
   onTaskClick
 }) => {
@@ -41,6 +44,12 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
     });
   
   const totalFunctionPoints = columnTasks.reduce((sum, task) => sum + (task.function_points || 0), 0);
+
+  // Verificar se é a coluna "Concluído"
+  const isCompletedColumn = column.title?.toLowerCase().includes('concluído') || 
+                           column.title?.toLowerCase().includes('concluido') ||
+                           column.title?.toLowerCase().includes('completed') ||
+                           column.title?.toLowerCase().includes('done');
 
   console.log(`[COLUMN ${column.title}] Tasks:`, columnTasks.map(t => ({ id: t.id, title: t.title, position: t.position })));
 
@@ -82,15 +91,17 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
         </div>
       </div>
 
-      {/* Droppable Area - Sem animações */}
-      <Droppable droppableId={column.id}>
+      {/* Droppable Area - Desabilitar drop para coluna concluída */}
+      <Droppable droppableId={column.id} isDropDisabled={isCompletedColumn}>
         {(provided, snapshot) => (
           <div
             ref={provided.innerRef}
             {...provided.droppableProps}
             className={`space-y-3 min-h-[200px] rounded-xl p-2 ${
-              snapshot.isDraggingOver 
+              snapshot.isDraggingOver && !isCompletedColumn
                 ? 'bg-blue-50 border-2 border-blue-300 border-dashed' 
+                : isCompletedColumn && snapshot.isDraggingOver
+                ? 'bg-red-50 border-2 border-red-300 border-dashed'
                 : 'border-2 border-transparent'
             }`}
           >
@@ -103,68 +114,80 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
                 tags={tags}
                 taskTags={taskTags}
                 projects={projects}
+                columns={columns} // Passar todas as colunas
                 onClick={() => onTaskClick(task)}
-                teamMembers={profiles} // Passar profiles como teamMembers
+                teamMembers={profiles}
               />
             ))}
             {provided.placeholder}
 
-            {/* Visual feedback for drop zone - Sem animação */}
+            {/* Visual feedback for drop zone */}
             {snapshot.isDraggingOver && (
-              <div className="flex items-center justify-center py-4 text-blue-500 text-sm font-medium">
+              <div className={`flex items-center justify-center py-4 text-sm font-medium ${
+                isCompletedColumn 
+                  ? 'text-red-500' 
+                  : 'text-blue-500'
+              }`}>
                 <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                  Solte aqui para adicionar à {column.title}
+                  <div className={`w-2 h-2 rounded-full ${
+                    isCompletedColumn ? 'bg-red-500' : 'bg-blue-500'
+                  }`}></div>
+                  {isCompletedColumn 
+                    ? 'Tarefas concluídas não podem ser movidas'
+                    : `Solte aqui para adicionar à ${column.title}`
+                  }
                 </div>
               </div>
             )}
 
-            {/* Add Task Button/Input */}
-            <div className="mt-4">
-              {isAdding ? (
-                <div className="bg-white rounded-2xl p-4 border-2 border-blue-200 shadow-sm">
-                  <input
-                    type="text"
-                    value={newTaskTitle}
-                    onChange={(e) => setNewTaskTitle(e.target.value)}
-                    onKeyDown={handleKeyPress}
-                    onBlur={() => {
-                      if (!newTaskTitle.trim()) {
-                        setIsAdding(false);
-                      }
-                    }}
-                    placeholder="Digite o título da tarefa..."
-                    className="w-full outline-none text-gray-900 font-medium placeholder:text-gray-400"
-                    autoFocus
-                  />
-                  <div className="flex gap-2 mt-3">
-                    <button
-                      onClick={handleAddTask}
-                      className="bg-blue-500 text-white px-3 py-1 rounded-lg text-sm font-medium hover:bg-blue-600"
-                    >
-                      Adicionar
-                    </button>
-                    <button
-                      onClick={() => {
-                        setIsAdding(false);
-                        setNewTaskTitle('');
+            {/* Add Task Button/Input - Não mostrar para coluna concluída */}
+            {!isCompletedColumn && (
+              <div className="mt-4">
+                {isAdding ? (
+                  <div className="bg-white rounded-2xl p-4 border-2 border-blue-200 shadow-sm">
+                    <input
+                      type="text"
+                      value={newTaskTitle}
+                      onChange={(e) => setNewTaskTitle(e.target.value)}
+                      onKeyDown={handleKeyPress}
+                      onBlur={() => {
+                        if (!newTaskTitle.trim()) {
+                          setIsAdding(false);
+                        }
                       }}
-                      className="bg-gray-200 text-gray-600 px-3 py-1 rounded-lg text-sm font-medium hover:bg-gray-300"
-                    >
-                      Cancelar
-                    </button>
+                      placeholder="Digite o título da tarefa..."
+                      className="w-full outline-none text-gray-900 font-medium placeholder:text-gray-400"
+                      autoFocus
+                    />
+                    <div className="flex gap-2 mt-3">
+                      <button
+                        onClick={handleAddTask}
+                        className="bg-blue-500 text-white px-3 py-1 rounded-lg text-sm font-medium hover:bg-blue-600"
+                      >
+                        Adicionar
+                      </button>
+                      <button
+                        onClick={() => {
+                          setIsAdding(false);
+                          setNewTaskTitle('');
+                        }}
+                        className="bg-gray-200 text-gray-600 px-3 py-1 rounded-lg text-sm font-medium hover:bg-gray-300"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <button
-                  onClick={() => setIsAdding(true)}
-                  className="w-full border-2 border-dashed rounded-2xl p-4 flex items-center justify-center gap-2 text-sm font-medium bg-white/50 hover:bg-white/80 border-gray-300 hover:border-blue-300 text-gray-500 hover:text-blue-500 group"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Adicionar tarefa</span>
-                </button>
-              )}
-            </div>
+                ) : (
+                  <button
+                    onClick={() => setIsAdding(true)}
+                    className="w-full border-2 border-dashed rounded-2xl p-4 flex items-center justify-center gap-2 text-sm font-medium bg-white/50 hover:bg-white/80 border-gray-300 hover:border-blue-300 text-gray-500 hover:text-blue-500 group"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Adicionar tarefa</span>
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         )}
       </Droppable>

@@ -492,6 +492,18 @@ export type Database = {
         Args: { updates: Json }
         Returns: undefined
       }
+      update_task_assignee_with_time_tracking: {
+        Args: {
+          p_task_id: string
+          p_new_assignee: string
+          p_other_updates: Json
+        }
+        Returns: undefined
+      }
+      update_task_with_time_tracking: {
+        Args: { p_task_id: string; p_updates: Json; p_column_changed: boolean }
+        Returns: undefined
+      }
       validate_task_positions: {
         Args: Record<PropertyKey, never>
         Returns: {

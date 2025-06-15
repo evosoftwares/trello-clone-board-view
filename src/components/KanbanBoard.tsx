@@ -14,7 +14,7 @@ const KanbanBoard = () => {
   const {
     columns,
     tasks,
-    profiles, // Usar profiles em vez de teamMembers
+    profiles,
     tags,
     taskTags,
     loading,
@@ -33,6 +33,26 @@ const KanbanBoard = () => {
 
     if (!destination) return;
     if (destination.droppableId === source.droppableId && destination.index === source.index) return;
+
+    // Verificar se a tarefa está sendo movida para ou de uma coluna "Concluído"
+    const destColumn = columns.find(col => col.id === destination.droppableId);
+    const sourceColumn = columns.find(col => col.id === source.droppableId);
+    
+    const isDestCompleted = destColumn?.title?.toLowerCase().includes('concluído') || 
+                           destColumn?.title?.toLowerCase().includes('concluido') ||
+                           destColumn?.title?.toLowerCase().includes('completed') ||
+                           destColumn?.title?.toLowerCase().includes('done');
+                           
+    const isSourceCompleted = sourceColumn?.title?.toLowerCase().includes('concluído') || 
+                             sourceColumn?.title?.toLowerCase().includes('concluido') ||
+                             sourceColumn?.title?.toLowerCase().includes('completed') ||
+                             sourceColumn?.title?.toLowerCase().includes('done');
+
+    // Bloquear movimento se a origem for "Concluído"
+    if (isSourceCompleted) {
+      console.log('[DRAG BLOCKED] Cannot move completed tasks');
+      return;
+    }
 
     console.log('[DRAG END] Moving task:', {
       taskId: draggableId,
@@ -107,8 +127,9 @@ const KanbanBoard = () => {
                 tasks={tasks}
                 tags={tags}
                 taskTags={taskTags}
-                projects={[]} // Pode ser vazio se não precisar
-                profiles={profiles} // Passar profiles
+                projects={[]}
+                profiles={profiles}
+                columns={columns} // Passar todas as colunas
                 onAddTask={handleAddTask}
                 onTaskClick={setSelectedTask}
               />
