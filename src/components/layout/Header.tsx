@@ -44,54 +44,56 @@ const Header: React.FC = () => {
     .toUpperCase();
 
   return (
-    <header className="bg-white border-b border-gray-200 px-6 py-4">
+    <header className="bg-white/80 backdrop-blur-sm border-b border-slate-200/50 px-6 py-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <img 
-            src="/lovable-uploads/a10ac338-4759-417e-b7e5-f346ffac3d60.png" 
-            alt="Evo Logo" 
-            className="h-8 w-auto"
-          />
-          <div className="h-8 w-px bg-gray-300" />
-          <h1 className="text-2xl font-bold text-gray-900">
+          <div className="bg-white/80 backdrop-blur-sm p-2 rounded-2xl shadow-sm">
+            <img 
+              src="/lovable-uploads/a10ac338-4759-417e-b7e5-f346ffac3d60.png" 
+              alt="Evo Logo" 
+              className="h-6 w-auto"
+            />
+          </div>
+          <div className="h-8 w-px bg-slate-300/50" />
+          <h1 className="text-2xl font-bold text-slate-800">
             Sistema Kanban
           </h1>
         </div>
 
         <div className="flex items-center gap-4">
           <div className="text-right">
-            <p className="text-sm font-medium text-gray-900">
+            <p className="text-sm font-medium text-slate-800">
               Olá, {profile.name}
             </p>
-            <p className="text-xs text-gray-500 capitalize">
+            <p className="text-xs text-slate-500 capitalize font-medium">
               {profile.role}
             </p>
           </div>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="relative h-10 w-10 rounded-full">
+              <Button variant="ghost" className="relative h-10 w-10 rounded-full hover:bg-slate-100/80">
                 <Avatar className="h-10 w-10">
                   <AvatarImage src={profile.avatar} alt={profile.name} />
-                  <AvatarFallback className="bg-blue-500 text-white">
+                  <AvatarFallback className="bg-blue-500 text-white font-medium">
                     {initials}
                   </AvatarFallback>
                 </Avatar>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-56" align="end" forceMount>
+            <DropdownMenuContent className="w-56 bg-white/95 backdrop-blur-sm border-slate-200/50 rounded-2xl shadow-lg" align="end" forceMount>
               <DropdownMenuLabel className="font-normal">
                 <div className="flex flex-col space-y-1">
-                  <p className="text-sm font-medium leading-none">
+                  <p className="text-sm font-medium leading-none text-slate-800">
                     {profile.name}
                   </p>
-                  <p className="text-xs leading-none text-muted-foreground">
+                  <p className="text-xs leading-none text-slate-500">
                     {profile.email}
                   </p>
                 </div>
               </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleSignOut}>
+              <DropdownMenuSeparator className="bg-slate-200/50" />
+              <DropdownMenuItem onClick={handleSignOut} className="rounded-xl hover:bg-slate-100/80">
                 <LogOut className="mr-2 h-4 w-4" />
                 <span>Sair</span>
               </DropdownMenuItem>

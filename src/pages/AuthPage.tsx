@@ -25,30 +25,32 @@ const AuthPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-          <span className="text-lg">Carregando...</span>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
+        <div className="flex items-center gap-3 bg-white/80 backdrop-blur-sm px-8 py-6 rounded-3xl shadow-lg">
+          <div className="w-6 h-6 border-3 border-blue-500 border-t-transparent rounded-full animate-spin" />
+          <span className="text-lg font-medium text-slate-700">Carregando...</span>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-6">
       <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <div className="flex justify-center mb-4">
-            <img 
-              src="/lovable-uploads/a10ac338-4759-417e-b7e5-f346ffac3d60.png" 
-              alt="Evo Logo" 
-              className="h-12 w-auto"
-            />
+        <div className="text-center mb-12">
+          <div className="flex justify-center mb-8">
+            <div className="bg-white/80 backdrop-blur-sm p-4 rounded-3xl shadow-lg">
+              <img 
+                src="/lovable-uploads/a10ac338-4759-417e-b7e5-f346ffac3d60.png" 
+                alt="Evo Logo" 
+                className="h-10 w-auto"
+              />
+            </div>
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+          <h1 className="text-3xl font-bold text-slate-800 mb-3">
             Sistema Kanban
           </h1>
-          <p className="text-gray-600">
+          <p className="text-slate-600 font-medium">
             Gerencie suas tarefas e projetos com eficiência
           </p>
         </div>
@@ -56,10 +58,10 @@ const AuthPage: React.FC = () => {
         {showSetup ? (
           <div>
             <InitialUsersSetup />
-            <div className="text-center mt-4">
+            <div className="text-center mt-6">
               <button
                 onClick={() => setShowSetup(false)}
-                className="text-blue-600 hover:text-blue-700 text-sm"
+                className="text-blue-600 hover:text-blue-700 text-sm font-medium bg-white/50 hover:bg-white/70 px-4 py-2 rounded-full transition-all duration-200"
               >
                 ← Voltar para login
               </button>
@@ -73,10 +75,10 @@ const AuthPage: React.FC = () => {
               <SignUpForm onToggleMode={toggleMode} />
             )}
             
-            <div className="text-center mt-4">
+            <div className="text-center mt-6">
               <button
                 onClick={() => setShowSetup(true)}
-                className="text-gray-500 hover:text-gray-700 text-sm"
+                className="text-slate-500 hover:text-slate-700 text-sm font-medium bg-white/30 hover:bg-white/50 px-4 py-2 rounded-full transition-all duration-200"
               >
                 Configurar usuários iniciais
               </button>
