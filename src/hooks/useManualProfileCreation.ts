@@ -13,17 +13,35 @@ export const useManualProfileCreation = () => {
       setLoading(true);
       console.log('[PROFILE CREATION] Starting for user:', { userId, name, email, role });
       
-      // Verificar se perfil já existe
-      console.log('[PROFILE CREATION] Checking if profile exists...');
-      const { data: existingProfile, error: checkError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .maybeSingle();
+      // Verificar se perfil já existe com retry
+      let existingProfile = null;
+      let retryCount = 0;
+      const maxRetries = 3;
 
-      if (checkError) {
-        console.error('[PROFILE CREATION] Error checking existing profile:', checkError);
-        throw new Error(`Erro ao verificar perfil: ${checkError.message}`);
+      while (retryCount < maxRetries) {
+        try {
+          console.log(`[PROFILE CREATION] Checking if profile exists (attempt ${retryCount + 1})...`);
+          const { data: profileData, error: checkError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', userId)
+            .maybeSingle();
+
+          if (checkError && checkError.code !== 'PGRST116') {
+            console.error('[PROFILE CREATION] Error checking existing profile:', checkError);
+            throw checkError;
+          }
+
+          existingProfile = profileData;
+          break;
+        } catch (err) {
+          retryCount++;
+          if (retryCount >= maxRetries) {
+            throw err;
+          }
+          console.log(`[PROFILE CREATION] Retry ${retryCount} in 1 second...`);
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
       }
 
       if (existingProfile) {
@@ -51,6 +69,21 @@ export const useManualProfileCreation = () => {
 
       if (insertError) {
         console.error('[PROFILE CREATION] Insert error:', insertError);
+        
+        // Se o erro for de duplicata, tentar buscar o perfil novamente
+        if (insertError.code === '23505') {
+          console.log('[PROFILE CREATION] Duplicate key error, fetching existing profile...');
+          const { data: existingAfterError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', userId)
+            .single();
+          
+          if (existingAfterError) {
+            return existingAfterError as Profile;
+          }
+        }
+        
         throw new Error(`Erro ao criar perfil: ${insertError.message}`);
       }
 
@@ -69,21 +102,26 @@ export const useManualProfileCreation = () => {
       // Mensagens de erro mais claras
       let errorMessage = 'Erro desconhecido ao criar perfil';
       
-      if (err.message?.includes('Failed to fetch')) {
-        errorMessage = 'Erro de conectividade. Verifique sua conexão com a internet e tente novamente.';
-      } else if (err.message?.includes('duplicate key')) {
+      if (err.message?.includes('Failed to fetch') || err.message?.includes('fetch')) {
+        errorMessage = 'Erro de conectividade. Verifique sua conexão com a internet.';
+      } else if (err.message?.includes('duplicate key') || err.code === '23505') {
         errorMessage = 'Perfil já existe para este usuário.';
+        // Não mostrar toast para erro de duplicata
+        return null;
       } else if (err.message?.includes('network')) {
         errorMessage = 'Erro de rede. Verifique sua conexão.';
       } else if (err.message) {
         errorMessage = err.message;
       }
 
-      toast({
-        title: "Erro ao criar perfil",
-        description: errorMessage,
-        variant: "destructive"
-      });
+      // Só mostrar toast se não for erro de duplicata
+      if (!err.message?.includes('duplicate') && err.code !== '23505') {
+        toast({
+          title: "Erro ao criar perfil",
+          description: errorMessage,
+          variant: "destructive"
+        });
+      }
       
       return null;
     } finally {
