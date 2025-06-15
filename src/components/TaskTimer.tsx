@@ -45,7 +45,8 @@ const TaskTimer: React.FC<TaskTimerProps> = ({ startTime, className = '' }) => {
     };
 
     updateDuration();
-    const interval = setInterval(updateDuration, 60000); // Atualiza a cada minuto
+    // Atualizar a cada 30 segundos para ser mais responsivo
+    const interval = setInterval(updateDuration, 30000);
 
     return () => clearInterval(interval);
   }, [startTime]);

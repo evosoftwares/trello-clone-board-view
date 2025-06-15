@@ -1,4 +1,3 @@
-
 import { useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Task } from '@/types/database';
@@ -145,31 +144,15 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
     setTasks(currentTasks => applyLocalChanges(currentTasks, updates));
 
     try {
-      // 2. Atualizar o timestamp de mudança de status e aplicar mudanças no banco
-      const now = new Date().toISOString();
-      
-      const updatePromises = updates.map(update => {
-        const updateData: any = { 
-          column_id: update.column_id, 
-          position: update.position 
-        };
-        
-        // Se é a tarefa sendo movida, atualizar timestamp
-        if (update.id === taskId) {
-          updateData.current_status_start_time = now;
-        }
-        
-        return supabase
-          .from('tasks')
-          .update(updateData)
-          .eq('id', update.id);
+      // 2. Usar transação para garantir atomicidade
+      const { error: transactionError } = await supabase.rpc('update_task_with_time_tracking', {
+        p_task_id: taskId,
+        p_updates: updates,
+        p_column_changed: taskToMove.column_id !== newColumnId
       });
 
-      const results = await Promise.all(updatePromises);
-      const failedUpdate = results.find(result => result.error);
-      
-      if (failedUpdate?.error) {
-        throw failedUpdate.error;
+      if (transactionError) {
+        throw transactionError;
       }
 
       // 3. Log da atividade
@@ -216,7 +199,7 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
         function_points: 1,
         complexity: 'medium',
         status_image_filenames: ['tarefas.svg'],
-        current_status_start_time: new Date().toISOString()
+        // Remover current_status_start_time - será definido automaticamente pelo trigger
       };
 
       if (projectId) {
@@ -256,26 +239,41 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
     setTasks(updatedTasks);
 
     try {
-      // Se está mudando o responsável, atualizar timestamp
-      const updateData: any = { ...updates };
+      // Usar função do banco para garantir timestamp preciso quando houver mudança de responsável
       if (updates.assignee !== undefined && originalTask?.assignee !== updates.assignee) {
-        updateData.current_status_start_time = new Date().toISOString();
+        const { error } = await supabase.rpc('update_task_assignee_with_time_tracking', {
+          p_task_id: taskId,
+          p_new_assignee: updates.assignee,
+          p_other_updates: { ...updates, assignee: undefined }
+        });
+
+        if (error) throw error;
+      } else {
+        // Atualização normal sem mudança de responsável
+        const { data, error } = await supabase
+          .from('tasks')
+          .update(updates)
+          .eq('id', taskId)
+          .select()
+          .single();
+
+        if (error) throw error;
       }
 
-      const { data, error } = await supabase
+      // Buscar dados atualizados
+      const { data: freshTask, error: fetchError } = await supabase
         .from('tasks')
-        .update(updateData)
+        .select('*')
         .eq('id', taskId)
-        .select()
         .single();
 
-      if (error) throw error;
+      if (fetchError) throw fetchError;
 
       // Log da atividade
-      await logActivity('task', taskId, 'update', originalTask, data);
+      await logActivity('task', taskId, 'update', originalTask, freshTask);
 
       setTasks(currentTasks => 
-        currentTasks.map(task => (task.id === data.id ? data as Task : task))
+        currentTasks.map(task => (task.id === taskId ? freshTask as Task : task))
       );
     } catch (err: any) {
       console.error('Error updating task:', err);
