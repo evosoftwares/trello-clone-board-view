@@ -1,15 +1,14 @@
-
 export const ENTITY_TYPE_TRANSLATIONS = {
   task: 'Tarefa',
   project: 'Projeto',
-  team_member: 'Membro da Equipe',
+  team_member: 'Colaborador',
   column: 'Coluna',
   tag: 'Etiqueta',
 } as const;
 
 export const ACTION_TYPE_TRANSLATIONS = {
   create: 'Criado',
-  update: 'Atualizado',
+  update: 'Modificado',
   delete: 'Removido',
   move: 'Movido',
 } as const;
@@ -21,35 +20,35 @@ export const FIELD_TRANSLATIONS = {
   function_points: 'pontos de função',
   complexity: 'complexidade',
   assignee: 'responsável',
-  status: 'status',
+  status: 'situação',
   column_id: 'coluna',
   position: 'posição',
-  estimated_hours: 'horas estimadas',
-  deadline: 'prazo',
+  estimated_hours: 'tempo estimado',
+  deadline: 'prazo final',
   budget: 'orçamento',
   project_id: 'projeto',
-  client_name: 'nome do cliente',
+  client_name: 'cliente',
   start_date: 'data de início',
   role: 'função',
-  email: 'email',
-  avatar: 'foto',
-  is_active: 'status ativo',
+  email: 'e-mail',
+  avatar: 'foto do perfil',
+  is_active: 'status',
   color: 'cor',
 } as const;
 
-// Mapeamentos para humanizar valores
+// Mapeamentos mais humanos para valores
 export const COMPLEXITY_TRANSLATIONS = {
-  low: 'Baixa',
-  medium: 'Média',
-  high: 'Alta',
-  very_high: 'Muito Alta',
+  low: 'Simples',
+  medium: 'Moderada',
+  high: 'Complexa',
+  very_high: 'Muito Complexa',
 } as const;
 
 export const STATUS_TRANSLATIONS = {
-  todo: 'A Fazer',
-  in_progress: 'Em Andamento',
+  todo: 'Para Fazer',
+  in_progress: 'Em Desenvolvimento',
   review: 'Em Revisão',
-  done: 'Concluído',
+  done: 'Finalizado',
   active: 'Ativo',
   paused: 'Pausado',
   completed: 'Concluído',
@@ -58,11 +57,11 @@ export const STATUS_TRANSLATIONS = {
 
 export const ROLE_TRANSLATIONS = {
   admin: 'Administrador',
-  manager: 'Gerente',
+  manager: 'Gerente de Projeto',
   developer: 'Desenvolvedor',
   designer: 'Designer',
-  tester: 'Testador',
-  analyst: 'Analista',
+  tester: 'Analista de Testes',
+  analyst: 'Analista de Sistemas',
 } as const;
 
 export const getEntityTypeName = (entityType: string): string => {
