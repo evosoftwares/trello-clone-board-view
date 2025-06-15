@@ -12,12 +12,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [profileChecked, setProfileChecked] = useState(false);
+  const [initialized, setInitialized] = useState(false);
   const { ensureProfileExists } = useManualProfileCreation();
 
-  const fetchProfile = async (userId: string, retryCount = 0) => {
+  const fetchProfile = async (userId: string) => {
     try {
-      console.log(`[AUTH] Fetching profile for user: ${userId} (attempt ${retryCount + 1})`);
+      console.log(`[AUTH] Fetching profile for user: ${userId}`);
       
       const { data: profileData, error } = await supabase
         .from('profiles')
@@ -27,12 +27,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (error) {
         console.error('[AUTH] Error fetching profile:', error);
-        if (retryCount < 2) {
-          console.log('[AUTH] Retrying profile fetch...');
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          return fetchProfile(userId, retryCount + 1);
-        }
-        throw error;
+        return null;
       }
 
       if (profileData) {
@@ -44,87 +39,99 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return null;
     } catch (err) {
       console.error('[AUTH] Profile fetch failed:', err);
-      throw err;
+      return null;
+    }
+  };
+
+  const handleAuthUser = async (currentUser: User | null) => {
+    if (!currentUser) {
+      setProfile(null);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      console.log('[AUTH] Handling auth user:', currentUser.email);
+      
+      // Tentar buscar perfil existente primeiro
+      let profileData = await fetchProfile(currentUser.id);
+      
+      // Se não encontrou, tentar criar
+      if (!profileData) {
+        console.log('[AUTH] Profile not found, creating...');
+        profileData = await ensureProfileExists(currentUser);
+        
+        if (profileData) {
+          setProfile(profileData);
+        }
+      }
+    } catch (err) {
+      console.error('[AUTH] Error handling auth user:', err);
+      setProfile(null);
+    } finally {
+      setLoading(false);
     }
   };
 
   useEffect(() => {
     let mounted = true;
 
-    const handleAuthStateChange = async (event: string, session: Session | null) => {
-      if (!mounted) return;
+    const initializeAuth = async () => {
+      try {
+        console.log('[AUTH] Initializing auth...');
+        
+        // Get current session
+        const { data: { session: currentSession }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('[AUTH] Error getting session:', error);
+        }
 
-      console.log('[AUTH] Auth state changed:', event, session?.user?.email);
-      
-      setSession(session);
-      setUser(session?.user ?? null);
-      setProfileChecked(false);
-
-      if (session?.user && !profileChecked) {
-        try {
-          setLoading(true);
+        if (mounted) {
+          setSession(currentSession);
+          setUser(currentSession?.user ?? null);
+          setInitialized(true);
           
-          // Tentar buscar perfil existente primeiro
-          let profileData = await fetchProfile(session.user.id);
-          
-          // Se não encontrou, tentar criar
-          if (!profileData) {
-            console.log('[AUTH] Profile not found, creating...');
-            profileData = await ensureProfileExists(session.user);
-            
-            if (profileData) {
-              setProfile(profileData);
-            }
-          }
-          
-          setProfileChecked(true);
-        } catch (err) {
-          console.error('[AUTH] Profile management error:', err);
-          setProfile(null);
-        } finally {
-          if (mounted) {
+          if (currentSession?.user) {
+            await handleAuthUser(currentSession.user);
+          } else {
             setLoading(false);
           }
         }
-      } else if (!session?.user) {
-        setProfile(null);
-        setProfileChecked(false);
-        setLoading(false);
+      } catch (err) {
+        console.error('[AUTH] Initialization error:', err);
+        if (mounted) {
+          setLoading(false);
+          setInitialized(true);
+        }
       }
     };
 
     // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(handleAuthStateChange);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+      if (!mounted) return;
 
-    // Check for existing session
-    const initializeAuth = async () => {
-      try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error('[AUTH] Error getting session:', error);
-          setLoading(false);
-          return;
-        }
+      console.log('[AUTH] Auth state changed:', event, newSession?.user?.email);
+      
+      setSession(newSession);
+      setUser(newSession?.user ?? null);
 
-        if (session?.user && !profileChecked) {
-          await handleAuthStateChange('INITIAL_SESSION', session);
-        } else {
-          setLoading(false);
-        }
-      } catch (err) {
-        console.error('[AUTH] Initialization error:', err);
+      if (newSession?.user && initialized) {
+        await handleAuthUser(newSession.user);
+      } else if (!newSession?.user) {
+        setProfile(null);
         setLoading(false);
       }
-    };
+    });
 
+    // Initialize auth
     initializeAuth();
 
     return () => {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [ensureProfileExists, profileChecked]);
+  }, [ensureProfileExists, initialized]);
 
   const signIn = async (email: string, password: string) => {
     try {
@@ -168,7 +175,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(null);
         setSession(null);
         setProfile(null);
-        setProfileChecked(false);
+        setInitialized(false);
       }
       return { error };
     } catch (err: any) {

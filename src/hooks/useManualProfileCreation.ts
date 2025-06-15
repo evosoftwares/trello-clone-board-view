@@ -13,45 +13,27 @@ export const useManualProfileCreation = () => {
       setLoading(true);
       console.log('[PROFILE CREATION] Starting for user:', { userId, name, email, role });
       
-      // Verificar se perfil já existe com retry
-      let existingProfile = null;
-      let retryCount = 0;
-      const maxRetries = 3;
+      // Verificar se perfil já existe
+      console.log('[PROFILE CREATION] Checking if profile exists...');
+      const { data: profileData, error: checkError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
 
-      while (retryCount < maxRetries) {
-        try {
-          console.log(`[PROFILE CREATION] Checking if profile exists (attempt ${retryCount + 1})...`);
-          const { data: profileData, error: checkError } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', userId)
-            .maybeSingle();
-
-          if (checkError && checkError.code !== 'PGRST116') {
-            console.error('[PROFILE CREATION] Error checking existing profile:', checkError);
-            throw checkError;
-          }
-
-          existingProfile = profileData;
-          break;
-        } catch (err) {
-          retryCount++;
-          if (retryCount >= maxRetries) {
-            throw err;
-          }
-          console.log(`[PROFILE CREATION] Retry ${retryCount} in 1 second...`);
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
+      if (checkError && checkError.code !== 'PGRST116') {
+        console.error('[PROFILE CREATION] Error checking existing profile:', checkError);
+        throw checkError;
       }
 
-      if (existingProfile) {
-        console.log('[PROFILE CREATION] Profile already exists:', existingProfile);
-        return existingProfile as Profile;
+      if (profileData) {
+        console.log('[PROFILE CREATION] Profile already exists:', profileData);
+        return profileData as Profile;
       }
 
       // Criar novo perfil
       console.log('[PROFILE CREATION] Creating new profile...');
-      const profileData = {
+      const newProfileData = {
         id: userId,
         name: name,
         email: email,
@@ -59,11 +41,11 @@ export const useManualProfileCreation = () => {
         is_active: true
       };
 
-      console.log('[PROFILE CREATION] Profile data to insert:', profileData);
+      console.log('[PROFILE CREATION] Profile data to insert:', newProfileData);
 
       const { data: newProfile, error: insertError } = await supabase
         .from('profiles')
-        .insert(profileData)
+        .insert(newProfileData)
         .select()
         .single();
 
@@ -77,7 +59,7 @@ export const useManualProfileCreation = () => {
             .from('profiles')
             .select('*')
             .eq('id', userId)
-            .single();
+            .maybeSingle();
           
           if (existingAfterError) {
             return existingAfterError as Profile;
@@ -105,8 +87,7 @@ export const useManualProfileCreation = () => {
       if (err.message?.includes('Failed to fetch') || err.message?.includes('fetch')) {
         errorMessage = 'Erro de conectividade. Verifique sua conexão com a internet.';
       } else if (err.message?.includes('duplicate key') || err.code === '23505') {
-        errorMessage = 'Perfil já existe para este usuário.';
-        // Não mostrar toast para erro de duplicata
+        // Não mostrar toast para erro de duplicata - é esperado
         return null;
       } else if (err.message?.includes('network')) {
         errorMessage = 'Erro de rede. Verifique sua conexão.';
@@ -114,14 +95,11 @@ export const useManualProfileCreation = () => {
         errorMessage = err.message;
       }
 
-      // Só mostrar toast se não for erro de duplicata
-      if (!err.message?.includes('duplicate') && err.code !== '23505') {
-        toast({
-          title: "Erro ao criar perfil",
-          description: errorMessage,
-          variant: "destructive"
-        });
-      }
+      toast({
+        title: "Erro ao criar perfil",
+        description: errorMessage,
+        variant: "destructive"
+      });
       
       return null;
     } finally {
