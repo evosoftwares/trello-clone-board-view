@@ -1,3 +1,4 @@
+
 export interface KanbanColumn {
   id: string;
   title: string;
@@ -96,7 +97,7 @@ export interface FunctionPointsHistory {
 
 export interface ActivityLog {
   id: string;
-  entity_type: 'task' | 'project' | 'team_member' | 'column' | 'tag';
+  entity_type: 'task' | 'project' | 'team_member' | 'column' | 'tag' | 'task_comment';
   entity_id: string;
   action_type: 'create' | 'update' | 'delete' | 'move';
   old_data?: any;

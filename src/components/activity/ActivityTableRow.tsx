@@ -94,8 +94,9 @@ export const ActivityTableRow: React.FC<ActivityTableRowProps> = ({
 
   const getUserName = (activity: ActivityLog) => {
     if (activity.user_id && referenceData?.profiles) {
-      const profile = referenceData.profiles.find((p: any) => p.id === activity.user_id);
-      if (profile) return profile.name;
+      // referenceData.profiles é um objeto Record<string, string>, não um array
+      const profileName = referenceData.profiles[activity.user_id];
+      if (profileName) return profileName;
     }
     return activity.changed_by || 'Sistema';
   };
