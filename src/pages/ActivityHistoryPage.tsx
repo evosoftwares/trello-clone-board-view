@@ -148,17 +148,17 @@ const ActivityHistoryPage: React.FC = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-6">
-        <Card className="max-w-md mx-auto rounded-3xl shadow-lg border-0 bg-white/80 backdrop-blur-sm">
+      <div className="min-h-screen bg-gray-50 p-6">
+        <Card className="max-w-md mx-auto rounded-xl shadow-sm border bg-white">
           <CardContent className="p-8 text-center">
-            <div className="w-16 h-16 mx-auto mb-4 bg-red-100 rounded-full flex items-center justify-center">
+            <div className="w-16 h-16 mx-auto mb-4 bg-red-50 rounded-full flex items-center justify-center">
               <RefreshCw className="w-8 h-8 text-red-600" />
             </div>
             <h3 className="text-lg font-semibold text-gray-900 mb-2">Erro ao carregar histórico</h3>
             <p className="text-gray-600 mb-6">{error}</p>
             <Button 
               onClick={() => fetchActivities()} 
-              className="rounded-full px-6 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+              className="rounded-lg px-6 py-2 bg-blue-600 hover:bg-blue-700"
             >
               <RefreshCw className="w-4 h-4 mr-2" />
               Tentar Novamente
@@ -170,7 +170,7 @@ const ActivityHistoryPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-6">
+    <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -179,14 +179,14 @@ const ActivityHistoryPage: React.FC = () => {
               variant="outline"
               size="sm"
               onClick={() => navigate('/')}
-              className="rounded-full border-2 border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-all duration-200"
+              className="rounded-lg border-gray-200 hover:border-blue-300 hover:bg-blue-50"
             >
               <ArrowLeft className="w-4 h-4 mr-2" />
               Voltar
             </Button>
             
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
+              <div className="w-14 h-14 bg-blue-600 rounded-xl flex items-center justify-center shadow-sm">
                 <Clock className="w-7 h-7 text-white" />
               </div>
               <div>
@@ -201,7 +201,7 @@ const ActivityHistoryPage: React.FC = () => {
             size="sm"
             onClick={() => fetchActivities()}
             disabled={isLoading}
-            className="rounded-full border-2 border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-all duration-200"
+            className="rounded-lg border-gray-200 hover:border-blue-300 hover:bg-blue-50"
           >
             <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
             {isLoading ? 'Carregando...' : 'Atualizar'}
@@ -228,11 +228,11 @@ const ActivityHistoryPage: React.FC = () => {
         />
 
         {/* Tabela de atividades */}
-        <Card className="rounded-3xl shadow-lg border-0 bg-white/80 backdrop-blur-sm overflow-hidden">
-          <CardHeader className="bg-gradient-to-r from-gray-50 to-blue-50 border-b border-gray-100">
+        <Card className="rounded-xl shadow-sm border bg-white overflow-hidden">
+          <CardHeader className="bg-gray-50 border-b border-gray-100">
             <CardTitle className="flex items-center justify-between text-xl">
               <span className="text-gray-900">Registro de Atividades</span>
-              <span className="text-sm font-normal text-gray-500 bg-white rounded-full px-4 py-1.5">
+              <span className="text-sm font-normal text-gray-500 bg-white rounded-lg px-4 py-1.5 border">
                 {filteredActivities.length} de {activities.length} registros
               </span>
             </CardTitle>
@@ -241,7 +241,7 @@ const ActivityHistoryPage: React.FC = () => {
           <CardContent className="p-0">
             {isLoading && (
               <div className="text-center py-16">
-                <div className="w-16 h-16 mx-auto mb-4 bg-blue-100 rounded-full flex items-center justify-center">
+                <div className="w-16 h-16 mx-auto mb-4 bg-blue-50 rounded-full flex items-center justify-center">
                   <RefreshCw className="w-8 h-8 text-blue-600 animate-spin" />
                 </div>
                 <p className="text-gray-600 font-medium">Carregando histórico...</p>
@@ -263,7 +263,7 @@ const ActivityHistoryPage: React.FC = () => {
                   <Button 
                     variant="outline" 
                     onClick={clearAllFilters} 
-                    className="rounded-full border-2 border-gray-200 hover:border-blue-300 hover:bg-blue-50"
+                    className="rounded-lg border-gray-200 hover:border-blue-300 hover:bg-blue-50"
                   >
                     <RefreshCw className="w-4 h-4 mr-2" />
                     Limpar Filtros
@@ -276,7 +276,7 @@ const ActivityHistoryPage: React.FC = () => {
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
-                    <TableRow className="bg-gradient-to-r from-gray-50 to-blue-50 border-b-2 border-blue-100">
+                    <TableRow className="bg-gray-50 border-b border-gray-200">
                       <TableHead className="w-16 text-center font-semibold text-gray-700">Ação</TableHead>
                       <TableHead className="min-w-32 font-semibold text-gray-700">Tipo</TableHead>
                       <TableHead className="min-w-48 font-semibold text-gray-700">Item</TableHead>

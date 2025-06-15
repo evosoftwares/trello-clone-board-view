@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Clock, User, Edit, Plus, Trash2, Move, MessageCircle } from 'lucide-react';
+import { Clock, User, Edit, Plus, Trash2, Move, MessageCircle, FileText, Users, Tag, Folder } from 'lucide-react';
 import { ActivityLog } from '@/types/database';
 import { Badge } from '@/components/ui/badge';
 import { TableCell, TableRow } from '@/components/ui/table';
@@ -36,24 +36,32 @@ export const ActivityTableRow: React.FC<ActivityTableRowProps> = ({
   const getActionColor = (action: string) => {
     switch (action) {
       case 'create':
-        return 'bg-green-100 text-green-800 border-green-200';
+        return 'bg-green-50 text-green-700 border-green-200';
       case 'update':
-        return 'bg-blue-100 text-blue-800 border-blue-200';
+        return 'bg-blue-50 text-blue-700 border-blue-200';
       case 'delete':
-        return 'bg-red-100 text-red-800 border-red-200';
+        return 'bg-red-50 text-red-700 border-red-200';
       case 'move':
-        return 'bg-purple-100 text-purple-800 border-purple-200';
+        return 'bg-purple-50 text-purple-700 border-purple-200';
       default:
-        return 'bg-gray-100 text-gray-800 border-gray-200';
+        return 'bg-gray-50 text-gray-700 border-gray-200';
     }
   };
 
   const getEntityIcon = (entityType: string) => {
     switch (entityType) {
+      case 'task':
+        return <FileText className="w-4 h-4 text-blue-600" />;
+      case 'project':
+        return <Folder className="w-4 h-4 text-indigo-600" />;
+      case 'team_member':
+        return <Users className="w-4 h-4 text-green-600" />;
+      case 'tag':
+        return <Tag className="w-4 h-4 text-orange-600" />;
       case 'task_comment':
-        return <MessageCircle className="w-4 h-4 text-blue-500" />;
+        return <MessageCircle className="w-4 h-4 text-cyan-600" />;
       default:
-        return null;
+        return <FileText className="w-4 h-4 text-gray-600" />;
     }
   };
 
@@ -157,8 +165,8 @@ export const ActivityTableRow: React.FC<ActivityTableRowProps> = ({
       {/* Usuário */}
       <TableCell>
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center">
-            <User className="w-4 h-4 text-white" />
+          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+            <User className="w-4 h-4 text-blue-600" />
           </div>
           <span className="text-sm font-medium text-gray-700">
             {getUserName(activity)}
