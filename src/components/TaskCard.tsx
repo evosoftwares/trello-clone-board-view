@@ -1,29 +1,40 @@
 
 import React from 'react';
 import { Draggable } from '@hello-pangea/dnd';
-import { Task, Tag, TaskTag, Project } from '@/types/database';
-import { ProjectBadge } from './projects/ProjectBadge';
+import { Clock, User, MessageCircle, Tag } from 'lucide-react';
+import { Task, TeamMember, Project, Tag as TagType } from '@/types/database';
+import { Badge } from '@/components/ui/badge';
+import { ProjectBadge } from '@/components/projects/ProjectBadge';
 
 interface TaskCardProps {
   task: Task;
   index: number;
-  tags: Tag[];
-  taskTags: TaskTag[];
+  onClick: () => void;
+  teamMembers: TeamMember[];
   projects: Project[];
-  onTaskClick: (task: Task) => void;
+  tags: TagType[];
+  taskTags: { task_id: string; tag_id: string }[];
 }
 
 const TaskCard: React.FC<TaskCardProps> = ({ 
   task, 
   index, 
-  tags = [],
-  taskTags = [],
-  projects = [],
-  onTaskClick
+  onClick, 
+  teamMembers, 
+  projects, 
+  tags, 
+  taskTags 
 }) => {
-  const taskTagIds = (taskTags || []).filter(tt => tt.task_id === task.id).map(tt => tt.tag_id);
-  const taskTagsData = (tags || []).filter(tag => taskTagIds.includes(tag.id));
-  const taskProject = projects.find(p => p.id === task.project_id);
+  // Encontrar o nome do responsável
+  const assignee = teamMembers.find(member => member.id === task.assignee);
+  const assigneeName = assignee ? assignee.name : null;
+
+  // Encontrar o projeto associado
+  const project = projects.find(p => p.id === task.project_id);
+
+  // Encontrar as tags da tarefa
+  const taskTagIds = taskTags.filter(tt => tt.task_id === task.id).map(tt => tt.tag_id);
+  const taskTagList = tags.filter(tag => taskTagIds.includes(tag.id));
 
   return (
     <Draggable draggableId={task.id} index={index}>
@@ -32,88 +43,110 @@ const TaskCard: React.FC<TaskCardProps> = ({
           ref={provided.innerRef}
           {...provided.draggableProps}
           {...provided.dragHandleProps}
-          onClick={() => onTaskClick(task)}
-          className={`bg-white rounded-2xl p-4 shadow-sm border border-gray-100 cursor-pointer active:cursor-grabbing hover:shadow-md transition-all duration-200 ${
-            snapshot.isDragging ? 'shadow-lg rotate-2' : ''
+          className={`bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-3 cursor-pointer transition-all duration-200 hover:shadow-md hover:border-blue-300 ${
+            snapshot.isDragging ? 'rotate-2 shadow-lg' : ''
           }`}
+          onClick={onClick}
         >
-          {/* Header com ícones e projeto */}
-          <div className="flex items-center justify-between mb-3">
-            {/* Status Images */}
-            {task.status_image_filenames && task.status_image_filenames.length > 0 ? (
-              <div className="flex flex-wrap gap-2 items-center">
-                {task.status_image_filenames.map((imageName, index) => (
-                  <img
-                    key={index}
-                    src={`/imagens/${imageName}`}
-                    alt={`Status: ${imageName}`}
-                    className="w-5 h-5 rounded object-contain"
-                  />
-                ))}
-              </div>
-            ) : (
-              <div />
-            )}
-
-            {/* Function Points Badge */}
-            <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center ml-auto">
-              <span className="text-xs font-bold text-blue-600">{task.function_points || 0}</span>
-            </div>
-          </div>
-
-          {/* Project Badge */}
-          {taskProject && (
-            <div className="mb-3">
-              <ProjectBadge project={taskProject} size="sm" />
-            </div>
-          )}
-
-          {/* Tags - Movidas para cima, antes do título */}
-          {taskTagsData.length > 0 && (
-            <div className="flex flex-wrap gap-1 mb-3">
-              {taskTagsData.slice(0, 3).map((tag) => (
-                <span 
-                  key={tag.id} 
-                  className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border"
-                  style={{ 
-                    backgroundColor: tag.color + '15', 
-                    borderColor: tag.color + '30',
-                    color: tag.color 
-                  }}
-                >
-                  <div 
-                    className="w-2 h-2 rounded-full mr-1"
-                    style={{ backgroundColor: tag.color }}
-                  />
-                  {tag.name}
-                </span>
-              ))}
-              {taskTagsData.length > 3 && (
-                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">
-                  +{taskTagsData.length - 3}
-                </span>
+          <div className="space-y-3">
+            {/* Header com título e projeto */}
+            <div className="space-y-2">
+              <h3 className="font-semibold text-gray-900 text-sm leading-tight line-clamp-2">
+                {task.title}
+              </h3>
+              
+              {project && (
+                <ProjectBadge project={project} size="sm" />
               )}
             </div>
-          )}
 
-          {/* Título */}
-          <h3 className="text-gray-900 font-semibold text-base mb-2 line-clamp-2">
-            {task.title}
-          </h3>
+            {/* Descrição */}
+            {task.description && (
+              <p className="text-xs text-gray-600 line-clamp-2">
+                {task.description}
+              </p>
+            )}
 
-          {/* Descrição */}
-          {task.description && (
-            <p className="text-gray-500 text-sm mb-3 line-clamp-2">
-              {task.description}
-            </p>
-          )}
+            {/* Tags */}
+            {taskTagList.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {taskTagList.slice(0, 3).map((tag) => (
+                  <Badge
+                    key={tag.id}
+                    variant="secondary"
+                    className="text-xs px-2 py-0.5 h-5"
+                    style={{ backgroundColor: tag.color + '20', color: tag.color }}
+                  >
+                    <Tag className="w-2.5 h-2.5 mr-1" />
+                    {tag.name}
+                  </Badge>
+                ))}
+                {taskTagList.length > 3 && (
+                  <Badge variant="outline" className="text-xs px-2 py-0.5 h-5">
+                    +{taskTagList.length - 3}
+                  </Badge>
+                )}
+              </div>
+            )}
 
-          {/* Assignee info */}
-          {task.assignee && (
-            <div className="mt-3 pt-3 border-t border-gray-100">
-              <span className="text-xs text-gray-500">Responsável: {task.assignee}</span>
+            {/* Informações da tarefa */}
+            <div className="flex items-center justify-between text-xs text-gray-500">
+              <div className="flex items-center space-x-3">
+                {/* Pontos de função */}
+                {task.function_points > 0 && (
+                  <div className="flex items-center gap-1">
+                    <div className="w-4 h-4 bg-blue-100 rounded-full flex items-center justify-center">
+                      <span className="text-blue-600 text-xs font-medium">
+                        {task.function_points}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Horas estimadas */}
+                {task.estimated_hours && (
+                  <div className="flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    <span>{task.estimated_hours}h</span>
+                  </div>
+                )}
+
+                {/* Comentários */}
+                <div className="flex items-center gap-1">
+                  <MessageCircle className="w-3 h-3" />
+                  <span>0</span>
+                </div>
+              </div>
+
+              {/* Responsável */}
+              {assigneeName && (
+                <div className="flex items-center gap-1">
+                  <User className="w-3 h-3" />
+                  <span className="font-medium">{assigneeName}</span>
+                </div>
+              )}
             </div>
-          )}
+
+            {/* Complexidade */}
+            {task.complexity && (
+              <div className="flex justify-end">
+                <Badge 
+                  variant="outline" 
+                  className={`text-xs px-2 py-0.5 h-5 ${
+                    task.complexity === 'low' ? 'border-green-300 text-green-700 bg-green-50' :
+                    task.complexity === 'medium' ? 'border-yellow-300 text-yellow-700 bg-yellow-50' :
+                    task.complexity === 'high' ? 'border-red-300 text-red-700 bg-red-50' :
+                    'border-gray-300 text-gray-700 bg-gray-50'
+                  }`}
+                >
+                  {task.complexity === 'low' ? 'Baixa' :
+                   task.complexity === 'medium' ? 'Média' :
+                   task.complexity === 'high' ? 'Alta' : 
+                   task.complexity}
+                </Badge>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </Draggable>
