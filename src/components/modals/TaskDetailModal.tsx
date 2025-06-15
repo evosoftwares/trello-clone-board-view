@@ -21,7 +21,7 @@ const taskFormSchema = z.object({
   description: z.string().optional(),
   assignee: z.string().optional(),
   function_points: z.coerce.number().min(0).optional(),
-  complexity: z.enum(['low', 'medium', 'high']),
+  complexity: z.string(), // Alterado para string simples
   project_id: z.string().min(1, 'Projeto é obrigatório.'),
 });
 
@@ -247,7 +247,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                         <span className="text-gray-500">Não atribuído</span>
                       </SelectItem>
                       {teamMembers.map(member => (
-                        <SelectItem key={member.id} value={member.name} className="rounded-lg">
+                        <SelectItem key={member.id} value={member.id} className="rounded-lg">
                           <div className="flex items-center gap-3">
                             <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
                               <span className="text-blue-600 text-sm font-medium">
