@@ -1,4 +1,3 @@
-
 import { useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Task } from '@/types/database';
@@ -206,8 +205,11 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
         // Remover current_status_start_time - será definido automaticamente pelo trigger
       };
 
-      if (projectId) {
-        taskData.project_id = projectId;
+      // Corrigir o tipo do project_id - converter para UUID ou null
+      if (projectId && projectId !== '') {
+        taskData.project_id = projectId; // Garantir que seja UUID válido
+      } else {
+        taskData.project_id = null; // Explicitamente null se não fornecido
       }
 
       const { data, error } = await supabase
