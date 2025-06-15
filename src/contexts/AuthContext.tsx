@@ -39,7 +39,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               }
 
               if (profileData) {
-                setProfile(profileData);
+                setProfile(profileData as Profile);
               } else {
                 // Se não existir, criar perfil
                 const newProfile = await ensureProfileExists(session.user);
@@ -73,7 +73,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           .maybeSingle()
           .then(async ({ data: profileData, error }) => {
             if (!error && profileData) {
-              setProfile(profileData);
+              setProfile(profileData as Profile);
             } else if (!profileData) {
               // Criar perfil se não existir
               const newProfile = await ensureProfileExists(session.user);

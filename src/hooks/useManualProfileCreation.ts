@@ -2,25 +2,26 @@
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { Profile } from '@/types/auth';
 
 export const useManualProfileCreation = () => {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
-  const createProfileIfNotExists = async (userId: string, name: string, email?: string, role = 'developer') => {
+  const createProfileIfNotExists = async (userId: string, name: string, email?: string, role = 'developer'): Promise<Profile | null> => {
     try {
       setLoading(true);
       
       // Verificar se perfil já existe
       const { data: existingProfile } = await supabase
         .from('profiles')
-        .select('id')
+        .select('*')
         .eq('id', userId)
         .maybeSingle();
 
       if (existingProfile) {
         console.log('Profile already exists for user:', userId);
-        return existingProfile;
+        return existingProfile as Profile;
       }
 
       // Criar novo perfil
@@ -39,7 +40,7 @@ export const useManualProfileCreation = () => {
       if (error) throw error;
 
       console.log('Profile created successfully:', newProfile);
-      return newProfile;
+      return newProfile as Profile;
 
     } catch (err: any) {
       console.error('Error creating profile:', err);
@@ -54,7 +55,7 @@ export const useManualProfileCreation = () => {
     }
   };
 
-  const ensureProfileExists = async (user: any) => {
+  const ensureProfileExists = async (user: any): Promise<Profile | null> => {
     if (!user) return null;
 
     const name = user.user_metadata?.name || user.email?.split('@')[0] || 'Usuário';
