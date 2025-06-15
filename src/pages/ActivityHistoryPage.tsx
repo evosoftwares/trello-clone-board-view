@@ -1,9 +1,10 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Clock, User, Edit, Plus, Trash2, Move, Filter, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { ActivityLog } from '@/types/database';
 import { useActivityHistory } from '@/hooks/useActivityHistory';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -22,6 +23,59 @@ const ActivityHistoryPage: React.FC = () => {
   const { activities, loading, error, fetchActivities } = useActivityHistory();
   const [filterType, setFilterType] = useState<string>('all');
   const [filterAction, setFilterAction] = useState<string>('all');
+  const [profiles, setProfiles] = useState<Record<string, string>>({});
+  const [projects, setProjects] = useState<Record<string, string>>({});
+  const [columns, setColumns] = useState<Record<string, string>>({});
+
+  // Carregar dados de referência
+  useEffect(() => {
+    const loadReferenceData = async () => {
+      try {
+        // Carregar perfis
+        const { data: profilesData } = await supabase
+          .from('profiles')
+          .select('id, name');
+        
+        if (profilesData) {
+          const profilesMap = profilesData.reduce((acc, profile) => {
+            acc[profile.id] = profile.name;
+            return acc;
+          }, {} as Record<string, string>);
+          setProfiles(profilesMap);
+        }
+
+        // Carregar projetos
+        const { data: projectsData } = await supabase
+          .from('projects')
+          .select('id, name');
+        
+        if (projectsData) {
+          const projectsMap = projectsData.reduce((acc, project) => {
+            acc[project.id] = project.name;
+            return acc;
+          }, {} as Record<string, string>);
+          setProjects(projectsMap);
+        }
+
+        // Carregar colunas
+        const { data: columnsData } = await supabase
+          .from('kanban_columns')
+          .select('id, title');
+        
+        if (columnsData) {
+          const columnsMap = columnsData.reduce((acc, column) => {
+            acc[column.id] = column.title;
+            return acc;
+          }, {} as Record<string, string>);
+          setColumns(columnsMap);
+        }
+      } catch (err) {
+        console.error('Erro ao carregar dados de referência:', err);
+      }
+    };
+
+    loadReferenceData();
+  }, []);
 
   const getActionIcon = (action: string) => {
     switch (action) {
@@ -72,15 +126,17 @@ const ActivityHistoryPage: React.FC = () => {
     }
   };
 
-  const formatDate = (dateString: string) => {
+  const formatDateTime = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
+    const timeStr = date.toLocaleTimeString('pt-BR', {
       hour: '2-digit',
       minute: '2-digit'
     });
+    const dateStr = date.toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit'
+    });
+    return `${timeStr} - ${dateStr}`;
   };
 
   const getEntityTitle = (activity: ActivityLog) => {
@@ -97,6 +153,21 @@ const ActivityHistoryPage: React.FC = () => {
       return activity.old_data.name;
     }
     return `${activity.entity_type} (${activity.entity_id.slice(0, 8)})`;
+  };
+
+  const getUserName = (userId?: string) => {
+    if (!userId) return 'Sistema';
+    return profiles[userId] || `Usuário (${userId.slice(0, 8)})`;
+  };
+
+  const getProjectName = (projectId?: string) => {
+    if (!projectId) return '';
+    return projects[projectId] || `Projeto (${projectId.slice(0, 8)})`;
+  };
+
+  const getColumnName = (columnId?: string) => {
+    if (!columnId) return '';
+    return columns[columnId] || `Coluna (${columnId.slice(0, 8)})`;
   };
 
   const getDetailedChanges = (activity: ActivityLog) => {
@@ -134,15 +205,17 @@ const ActivityHistoryPage: React.FC = () => {
             changes.push(`Complexidade: ${oldData[key]} → ${newData[key]}`);
             break;
           case 'assignee':
-            const oldAssignee = oldData[key] || 'nenhum';
-            const newAssignee = newData[key] || 'nenhum';
+            const oldAssignee = oldData[key] ? getUserName(oldData[key]) : 'nenhum';
+            const newAssignee = newData[key] ? getUserName(newData[key]) : 'nenhum';
             changes.push(`Responsável: ${oldAssignee} → ${newAssignee}`);
             break;
           case 'status':
             changes.push(`Status: ${oldData[key]} → ${newData[key]}`);
             break;
           case 'column_id':
-            changes.push(`Movido para outra coluna`);
+            const oldColumn = getColumnName(oldData[key]);
+            const newColumn = getColumnName(newData[key]);
+            changes.push(`Movido de "${oldColumn}" para "${newColumn}"`);
             break;
           case 'position':
             changes.push(`Posição alterada: ${oldData[key]} → ${newData[key]}`);
@@ -151,10 +224,17 @@ const ActivityHistoryPage: React.FC = () => {
             changes.push(`Horas estimadas: ${oldData[key]} → ${newData[key]}`);
             break;
           case 'deadline':
-            changes.push(`Prazo alterado de ${oldData[key]} para ${newData[key]}`);
+            const oldDeadline = oldData[key] ? new Date(oldData[key]).toLocaleDateString('pt-BR') : 'sem prazo';
+            const newDeadline = newData[key] ? new Date(newData[key]).toLocaleDateString('pt-BR') : 'sem prazo';
+            changes.push(`Prazo alterado de ${oldDeadline} para ${newDeadline}`);
             break;
           case 'budget':
-            changes.push(`Orçamento alterado de ${oldData[key]} para ${newData[key]}`);
+            changes.push(`Orçamento alterado de R$ ${oldData[key]} para R$ ${newData[key]}`);
+            break;
+          case 'project_id':
+            const oldProject = getProjectName(oldData[key]);
+            const newProject = getProjectName(newData[key]);
+            changes.push(`Projeto alterado de "${oldProject}" para "${newProject}"`);
             break;
           default:
             if (typeof newData[key] === 'string' || typeof newData[key] === 'number') {
@@ -311,12 +391,12 @@ const ActivityHistoryPage: React.FC = () => {
                         <TableCell>
                           <div className="flex items-center gap-1 text-sm text-gray-600">
                             <User className="w-3 h-3" />
-                            {activity.changed_by || 'Sistema'}
+                            {getUserName(activity.user_id)}
                           </div>
                         </TableCell>
                         <TableCell>
                           <div className="text-sm text-gray-600">
-                            {formatDate(activity.created_at)}
+                            {formatDateTime(activity.created_at)}
                           </div>
                         </TableCell>
                       </TableRow>

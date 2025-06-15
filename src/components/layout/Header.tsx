@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LogOut, Settings, History } from 'lucide-react';
@@ -10,7 +11,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { ProjectSelector } from '@/components/projects/ProjectSelector';
 
 const Header = () => {
   const { user, profile, signOut } = useAuth();
@@ -47,7 +47,6 @@ const Header = () => {
               Kanban Board
             </h1>
           </div>
-          <ProjectSelector />
         </div>
 
         <div className="flex items-center gap-4">
