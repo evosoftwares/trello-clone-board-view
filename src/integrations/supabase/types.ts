@@ -294,16 +294,80 @@ export type Database = {
           },
         ]
       }
+      task_time_log: {
+        Row: {
+          column_id: string
+          column_name: string
+          created_at: string
+          duration_seconds: number
+          end_time: string
+          id: string
+          start_time: string
+          task_id: string
+          user_id: string | null
+          user_name: string | null
+        }
+        Insert: {
+          column_id: string
+          column_name: string
+          created_at?: string
+          duration_seconds: number
+          end_time: string
+          id?: string
+          start_time: string
+          task_id: string
+          user_id?: string | null
+          user_name?: string | null
+        }
+        Update: {
+          column_id?: string
+          column_name?: string
+          created_at?: string
+          duration_seconds?: number
+          end_time?: string
+          id?: string
+          start_time?: string
+          task_id?: string
+          user_id?: string | null
+          user_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_time_log_column_id_fkey"
+            columns: ["column_id"]
+            isOneToOne: false
+            referencedRelation: "kanban_columns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_time_log_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_time_log_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tasks: {
         Row: {
           assignee: string | null
           column_id: string | null
           complexity: string | null
           created_at: string | null
+          current_status_start_time: string | null
           description: string | null
           estimated_hours: number | null
           function_points: number | null
           id: string
+          last_assignee: string | null
+          last_column_id: string | null
           position: number
           project_id: string | null
           status_image_filenames: string[] | null
@@ -315,10 +379,13 @@ export type Database = {
           column_id?: string | null
           complexity?: string | null
           created_at?: string | null
+          current_status_start_time?: string | null
           description?: string | null
           estimated_hours?: number | null
           function_points?: number | null
           id?: string
+          last_assignee?: string | null
+          last_column_id?: string | null
           position?: number
           project_id?: string | null
           status_image_filenames?: string[] | null
@@ -330,10 +397,13 @@ export type Database = {
           column_id?: string | null
           complexity?: string | null
           created_at?: string | null
+          current_status_start_time?: string | null
           description?: string | null
           estimated_hours?: number | null
           function_points?: number | null
           id?: string
+          last_assignee?: string | null
+          last_column_id?: string | null
           position?: number
           project_id?: string | null
           status_image_filenames?: string[] | null

@@ -118,8 +118,20 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
     return updatedTasks;
   };
 
-  const moveTask = useCallback(async (taskId: string, newColumnId: string, newPosition: number) => {
-    console.log('[MOVE TASK] Starting move:', { taskId, to: newColumnId, newPosition });
+  const moveTask = useCallback(async (taskId: string, sourceColumnId: string, newColumnId: string) => {
+    console.log('[MOVE TASK] Starting move:', { taskId, from: sourceColumnId, to: newColumnId });
+
+    const taskToMove = tasks.find(t => t.id === taskId);
+    if (!taskToMove) {
+      console.error('[MOVE TASK] Task not found:', taskId);
+      return;
+    }
+
+    // Calcular nova posição (último na coluna de destino)
+    const newPosition = Math.max(
+      ...tasks.filter(t => t.column_id === newColumnId).map(t => t.position),
+      -1
+    ) + 1;
 
     const updates = calculateNewPositions(tasks, taskId, newColumnId, newPosition);
     if (updates.length === 0) {
@@ -128,22 +140,30 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
     }
 
     const originalTasks = tasks;
-    const taskToMove = tasks.find(t => t.id === taskId);
 
     // 1. Aplicar mudanças otimisticamente
     setTasks(currentTasks => applyLocalChanges(currentTasks, updates));
 
     try {
-      // 2. Aplicar mudanças no banco usando updates individuais
-      const updatePromises = updates.map(update =>
-        supabase
+      // 2. Atualizar o timestamp de mudança de status e aplicar mudanças no banco
+      const now = new Date().toISOString();
+      
+      const updatePromises = updates.map(update => {
+        const updateData: any = { 
+          column_id: update.column_id, 
+          position: update.position 
+        };
+        
+        // Se é a tarefa sendo movida, atualizar timestamp
+        if (update.id === taskId) {
+          updateData.current_status_start_time = now;
+        }
+        
+        return supabase
           .from('tasks')
-          .update({ 
-            column_id: update.column_id, 
-            position: update.position 
-          })
-          .eq('id', update.id)
-      );
+          .update(updateData)
+          .eq('id', update.id);
+      });
 
       const results = await Promise.all(updatePromises);
       const failedUpdate = results.find(result => result.error);
@@ -152,8 +172,8 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
         throw failedUpdate.error;
       }
 
-      // 3. Log da atividade manualmente
-      if (taskToMove && taskToMove.column_id !== newColumnId) {
+      // 3. Log da atividade
+      if (taskToMove.column_id !== newColumnId) {
         await logActivity(
           'task',
           taskId,
@@ -177,7 +197,7 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
     }
   }, [tasks, setTasks, setError, logActivity]);
 
-  const createTask = useCallback(async (columnId: string, title: string, projectId?: string | null) => {
+  const createTask = useCallback(async (title: string, columnId: string, projectId?: string | null) => {
     if (!user) {
       setError('Usuário não autenticado');
       return;
@@ -195,7 +215,8 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
         position: maxPosition + 1,
         function_points: 1,
         complexity: 'medium',
-        status_image_filenames: ['tarefas.svg']
+        status_image_filenames: ['tarefas.svg'],
+        current_status_start_time: new Date().toISOString()
       };
 
       if (projectId) {
@@ -235,9 +256,15 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
     setTasks(updatedTasks);
 
     try {
+      // Se está mudando o responsável, atualizar timestamp
+      const updateData: any = { ...updates };
+      if (updates.assignee !== undefined && originalTask?.assignee !== updates.assignee) {
+        updateData.current_status_start_time = new Date().toISOString();
+      }
+
       const { data, error } = await supabase
         .from('tasks')
-        .update(updates)
+        .update(updateData)
         .eq('id', taskId)
         .select()
         .single();

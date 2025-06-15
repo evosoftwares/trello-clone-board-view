@@ -5,6 +5,7 @@ import { Clock, User, MessageCircle, Tag } from 'lucide-react';
 import { Task, TeamMember, Project, Tag as TagType } from '@/types/database';
 import { Badge } from '@/components/ui/badge';
 import { ProjectBadge } from '@/components/projects/ProjectBadge';
+import TaskTimer from './TaskTimer';
 
 interface TaskCardProps {
   task: Task;
@@ -78,6 +79,12 @@ const TaskCard: React.FC<TaskCardProps> = ({
                 <ProjectBadge project={project} size="sm" />
               )}
             </div>
+
+            {/* Cronômetro de tempo na coluna atual */}
+            <TaskTimer 
+              startTime={task.current_status_start_time} 
+              className="bg-blue-50 text-blue-600 px-2 py-1 rounded-md"
+            />
 
             {/* Descrição */}
             {task.description && (
