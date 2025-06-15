@@ -8,25 +8,25 @@ import { useManualProfileCreation } from '@/hooks/useManualProfileCreation';
 
 const initialUsers = [
   {
-    name: 'Gabriel Silva',
+    name: 'Gabriel',
     email: 'gabriel@kanban.dev',
     password: 'gabriel123',
     role: 'admin'
   },
   {
-    name: 'Babi Costa',
+    name: 'Babi',
     email: 'babi@kanban.dev', 
     password: 'babi123',
     role: 'designer'
   },
   {
-    name: 'Victor Santos',
+    name: 'Victor',
     email: 'victor@kanban.dev',
     password: 'victor123', 
     role: 'developer'
   },
   {
-    name: 'Marcelo Oliveira',
+    name: 'Marcelo',
     email: 'marcelo@kanban.dev',
     password: 'marcelo123',
     role: 'manager'
