@@ -49,11 +49,30 @@ const TaskCard: React.FC<TaskCardProps> = ({
           onClick={onClick}
         >
           <div className="space-y-3">
-            {/* Header com título e projeto */}
+            {/* Header: Título e Projeto */}
             <div className="space-y-2">
-              <h3 className="font-semibold text-gray-900 text-sm leading-tight line-clamp-2">
-                {task.title}
-              </h3>
+              <div className="flex items-start justify-between gap-2">
+                <h3 className="font-semibold text-gray-900 text-sm leading-tight line-clamp-2 flex-1">
+                  {task.title}
+                </h3>
+                {/* Complexidade no canto superior direito */}
+                {task.complexity && (
+                  <Badge 
+                    variant="outline" 
+                    className={`text-xs px-1.5 py-0.5 h-5 shrink-0 ${
+                      task.complexity === 'low' ? 'border-green-300 text-green-700 bg-green-50' :
+                      task.complexity === 'medium' ? 'border-yellow-300 text-yellow-700 bg-yellow-50' :
+                      task.complexity === 'high' ? 'border-red-300 text-red-700 bg-red-50' :
+                      'border-gray-300 text-gray-700 bg-gray-50'
+                    }`}
+                  >
+                    {task.complexity === 'low' ? 'B' :
+                     task.complexity === 'medium' ? 'M' :
+                     task.complexity === 'high' ? 'A' : 
+                     task.complexity}
+                  </Badge>
+                )}
+              </div>
               
               {project && (
                 <ProjectBadge project={project} size="sm" />
@@ -70,7 +89,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
             {/* Tags */}
             {taskTagList.length > 0 && (
               <div className="flex flex-wrap gap-1">
-                {taskTagList.slice(0, 3).map((tag) => (
+                {taskTagList.slice(0, 2).map((tag) => (
                   <Badge
                     key={tag.id}
                     variant="secondary"
@@ -81,17 +100,18 @@ const TaskCard: React.FC<TaskCardProps> = ({
                     {tag.name}
                   </Badge>
                 ))}
-                {taskTagList.length > 3 && (
+                {taskTagList.length > 2 && (
                   <Badge variant="outline" className="text-xs px-2 py-0.5 h-5">
-                    +{taskTagList.length - 3}
+                    +{taskTagList.length - 2}
                   </Badge>
                 )}
               </div>
             )}
 
-            {/* Informações da tarefa */}
-            <div className="flex items-center justify-between text-xs text-gray-500">
-              <div className="flex items-center space-x-3">
+            {/* Footer: Métricas e Responsável */}
+            <div className="flex items-center justify-between pt-1">
+              {/* Métricas à esquerda */}
+              <div className="flex items-center space-x-3 text-xs text-gray-500">
                 {/* Pontos de função */}
                 {task.function_points > 0 && (
                   <div className="flex items-center gap-1">
@@ -118,34 +138,16 @@ const TaskCard: React.FC<TaskCardProps> = ({
                 </div>
               </div>
 
-              {/* Responsável */}
+              {/* Responsável à direita */}
               {assigneeName && (
-                <div className="flex items-center gap-1">
-                  <User className="w-3 h-3" />
-                  <span className="font-medium">{assigneeName}</span>
+                <div className="flex items-center gap-1 text-xs text-gray-600">
+                  <div className="w-5 h-5 bg-gray-200 rounded-full flex items-center justify-center">
+                    <User className="w-3 h-3" />
+                  </div>
+                  <span className="font-medium max-w-16 truncate">{assigneeName}</span>
                 </div>
               )}
             </div>
-
-            {/* Complexidade */}
-            {task.complexity && (
-              <div className="flex justify-end">
-                <Badge 
-                  variant="outline" 
-                  className={`text-xs px-2 py-0.5 h-5 ${
-                    task.complexity === 'low' ? 'border-green-300 text-green-700 bg-green-50' :
-                    task.complexity === 'medium' ? 'border-yellow-300 text-yellow-700 bg-yellow-50' :
-                    task.complexity === 'high' ? 'border-red-300 text-red-700 bg-red-50' :
-                    'border-gray-300 text-gray-700 bg-gray-50'
-                  }`}
-                >
-                  {task.complexity === 'low' ? 'Baixa' :
-                   task.complexity === 'medium' ? 'Média' :
-                   task.complexity === 'high' ? 'Alta' : 
-                   task.complexity}
-                </Badge>
-              </div>
-            )}
           </div>
         </div>
       )}
