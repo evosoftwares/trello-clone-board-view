@@ -102,7 +102,8 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
                 tags={tags}
                 taskTags={taskTags}
                 projects={projects}
-                onTaskClick={onTaskClick}
+                onClick={() => onTaskClick(task)}
+                teamMembers={[]}
               />
             ))}
             {provided.placeholder}
