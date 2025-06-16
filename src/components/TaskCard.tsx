@@ -53,16 +53,16 @@ const TaskCard: React.FC<TaskCardProps> = ({
           ref={provided.innerRef}
           {...provided.draggableProps}
           {...provided.dragHandleProps}
-          className={`bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-3 cursor-pointer transition-all duration-200 hover:shadow-md hover:border-blue-300 ${
+          className={`bg-white rounded-lg lg:rounded-xl shadow-sm border border-gray-200 p-3 lg:p-4 mb-2 lg:mb-3 cursor-pointer transition-all duration-200 hover:shadow-md hover:border-blue-300 ${
             snapshot.isDragging ? 'rotate-2 shadow-lg' : ''
           } ${isCompleted ? 'opacity-75 bg-gray-50' : ''}`}
           onClick={onClick}
         >
-          <div className="space-y-3">
+          <div className="space-y-2 lg:space-y-3">
             {/* Header: Título e Projeto */}
-            <div className="space-y-2">
+            <div className="space-y-1.5 lg:space-y-2">
               <div className="flex items-start justify-between gap-2">
-                <h3 className={`font-semibold text-sm leading-tight line-clamp-2 flex-1 ${
+                <h3 className={`font-semibold text-xs lg:text-sm leading-tight line-clamp-2 flex-1 ${
                   isCompleted ? 'text-gray-600' : 'text-gray-900'
                 }`}>
                   {task.title}
@@ -71,7 +71,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
                 {task.complexity && (
                   <Badge 
                     variant="outline" 
-                    className={`text-xs px-1.5 py-0.5 h-5 shrink-0 ${
+                    className={`text-xs px-1 lg:px-1.5 py-0.5 h-4 lg:h-5 shrink-0 ${
                       task.complexity === 'low' ? 'border-green-300 text-green-700 bg-green-50' :
                       task.complexity === 'medium' ? 'border-yellow-300 text-yellow-700 bg-yellow-50' :
                       task.complexity === 'high' ? 'border-red-300 text-red-700 bg-red-50' :
@@ -95,7 +95,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
             {!isCompleted && (
               <TaskTimer 
                 startTime={task.current_status_start_time} 
-                className="bg-blue-50 text-blue-600 px-2 py-1 rounded-md"
+                className="bg-blue-50 text-blue-600 px-2 py-1 rounded-md text-xs"
               />
             )}
 
@@ -115,15 +115,15 @@ const TaskCard: React.FC<TaskCardProps> = ({
                   <Badge
                     key={tag.id}
                     variant="secondary"
-                    className="text-xs px-2 py-0.5 h-5"
+                    className="text-xs px-1.5 lg:px-2 py-0.5 h-4 lg:h-5"
                     style={{ backgroundColor: tag.color + '20', color: tag.color }}
                   >
-                    <Tag className="w-2.5 h-2.5 mr-1" />
-                    {tag.name}
+                    <Tag className="w-2 h-2 lg:w-2.5 lg:h-2.5 mr-1" />
+                    <span className="truncate max-w-16">{tag.name}</span>
                   </Badge>
                 ))}
                 {taskTagList.length > 2 && (
-                  <Badge variant="outline" className="text-xs px-2 py-0.5 h-5">
+                  <Badge variant="outline" className="text-xs px-1.5 lg:px-2 py-0.5 h-4 lg:h-5">
                     +{taskTagList.length - 2}
                   </Badge>
                 )}
@@ -133,13 +133,13 @@ const TaskCard: React.FC<TaskCardProps> = ({
             {/* Footer: Métricas e Responsável */}
             <div className="flex items-center justify-between pt-1">
               {/* Métricas à esquerda */}
-              <div className={`flex items-center space-x-3 text-xs ${
+              <div className={`flex items-center space-x-2 lg:space-x-3 text-xs ${
                 isCompleted ? 'text-gray-400' : 'text-gray-500'
               }`}>
                 {/* Pontos de função */}
                 {task.function_points > 0 && (
                   <div className="flex items-center gap-1">
-                    <div className="w-4 h-4 bg-blue-100 rounded-full flex items-center justify-center">
+                    <div className="w-3 h-3 lg:w-4 lg:h-4 bg-blue-100 rounded-full flex items-center justify-center">
                       <span className="text-blue-600 text-xs font-medium">
                         {task.function_points}
                       </span>
@@ -149,15 +149,15 @@ const TaskCard: React.FC<TaskCardProps> = ({
 
                 {/* Horas estimadas */}
                 {task.estimated_hours && (
-                  <div className="flex items-center gap-1">
-                    <Clock className="w-3 h-3" />
+                  <div className="flex items-center gap-0.5 lg:gap-1">
+                    <Clock className="w-2.5 h-2.5 lg:w-3 lg:h-3" />
                     <span>{task.estimated_hours}h</span>
                   </div>
                 )}
 
                 {/* Comentários */}
-                <div className="flex items-center gap-1">
-                  <MessageCircle className="w-3 h-3" />
+                <div className="flex items-center gap-0.5 lg:gap-1">
+                  <MessageCircle className="w-2.5 h-2.5 lg:w-3 lg:h-3" />
                   <span>0</span>
                 </div>
               </div>
@@ -167,17 +167,17 @@ const TaskCard: React.FC<TaskCardProps> = ({
                 <div className={`flex items-center gap-1 text-xs ${
                   isCompleted ? 'text-gray-500' : 'text-gray-600'
                 }`}>
-                  <div className="w-5 h-5 bg-gray-200 rounded-full flex items-center justify-center">
-                    <User className="w-3 h-3" />
+                  <div className="w-4 h-4 lg:w-5 lg:h-5 bg-gray-200 rounded-full flex items-center justify-center">
+                    <User className="w-2.5 h-2.5 lg:w-3 lg:h-3" />
                   </div>
-                  <span className="font-medium max-w-16 truncate">{assigneeName}</span>
+                  <span className="font-medium max-w-12 lg:max-w-16 truncate">{assigneeName}</span>
                 </div>
               )}
             </div>
 
             {/* Indicador visual de tarefa concluída */}
             {isCompleted && (
-              <div className="flex items-center justify-center pt-2">
+              <div className="flex items-center justify-center pt-1.5 lg:pt-2">
                 <div className="flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full">
                   <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                   <span className="font-medium">Concluída</span>
