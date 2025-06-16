@@ -158,14 +158,23 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
         throw transactionError;
       }
 
-      // 3. Log da atividade
+      // 3. Log da atividade apenas se houve mudança de coluna
       if (taskToMove.column_id !== newColumnId) {
+        console.log('[MOVE TASK] Logging activity for column change');
         await logActivity(
           'task',
           taskId,
           'move',
-          { column_id: taskToMove.column_id, position: taskToMove.position },
-          { column_id: newColumnId, position: newPosition },
+          { 
+            column_id: taskToMove.column_id, 
+            position: taskToMove.position,
+            title: taskToMove.title 
+          },
+          { 
+            column_id: newColumnId, 
+            position: newPosition,
+            title: taskToMove.title 
+          },
           { 
             from_column: taskToMove.column_id,
             to_column: newColumnId,
@@ -202,14 +211,13 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
         function_points: 1,
         complexity: 'medium',
         status_image_filenames: ['tarefas.svg'],
-        // Remover current_status_start_time - será definido automaticamente pelo trigger
       };
 
       // Corrigir o tipo do project_id - converter para UUID ou null
       if (projectId && projectId !== '') {
-        taskData.project_id = projectId; // Garantir que seja UUID válido
+        taskData.project_id = projectId;
       } else {
-        taskData.project_id = null; // Explicitamente null se não fornecido
+        taskData.project_id = null;
       }
 
       const { data, error } = await supabase
@@ -220,10 +228,14 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
 
       if (error) throw error;
 
+      console.log('[CREATE TASK] Logging activity for task creation');
       // Log da atividade
-      await logActivity('task', data.id, 'create', null, data, { project_id: projectId });
+      await logActivity('task', data.id, 'create', null, data, { 
+        project_id: projectId,
+        column_id: columnId 
+      });
 
-      console.log('[CREATE TASK] Task created successfully');
+      console.log('[CREATE TASK] Task created successfully:', data.id);
     } catch (err: any) {
       console.error('Error creating task:', err);
       setError(err.message);
@@ -238,6 +250,11 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
 
     const originalTasks = tasks;
     const originalTask = tasks.find(t => t.id === taskId);
+    
+    if (!originalTask) {
+      setError('Tarefa não encontrada');
+      return;
+    }
     
     const updatedTasks = tasks.map(task => 
       task.id === taskId ? { ...task, ...updates } : task
@@ -259,12 +276,10 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
         if (error) throw error;
       } else {
         // Atualização normal sem mudança de responsável
-        const { data, error } = await supabase
+        const { error } = await supabase
           .from('tasks')
           .update(updates)
-          .eq('id', taskId)
-          .select()
-          .single();
+          .eq('id', taskId);
 
         if (error) throw error;
       }
@@ -278,8 +293,12 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
 
       if (fetchError) throw fetchError;
 
+      console.log('[UPDATE TASK] Logging activity for task update');
       // Log da atividade
-      await logActivity('task', taskId, 'update', originalTask, freshTask);
+      await logActivity('task', taskId, 'update', originalTask, freshTask, {
+        project_id: originalTask.project_id,
+        column_id: originalTask.column_id
+      });
 
       setTasks(currentTasks => 
         currentTasks.map(task => (task.id === taskId ? freshTask as Task : task))
@@ -301,6 +320,11 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
     const originalTasks = tasks;
     const taskToDelete = tasks.find(t => t.id === taskId);
     
+    if (!taskToDelete) {
+      setError('Tarefa não encontrada');
+      return;
+    }
+    
     const updatedTasks = tasks.filter(task => task.id !== taskId);
     setTasks(updatedTasks);
 
@@ -312,8 +336,12 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
 
       if (error) throw error;
 
+      console.log('[DELETE TASK] Logging activity for task deletion');
       // Log da atividade
-      await logActivity('task', taskId, 'delete', taskToDelete, null);
+      await logActivity('task', taskId, 'delete', taskToDelete, null, {
+        project_id: taskToDelete.project_id,
+        column_id: taskToDelete.column_id
+      });
 
     } catch (err: any) {
       console.error('Error deleting task:', err);
