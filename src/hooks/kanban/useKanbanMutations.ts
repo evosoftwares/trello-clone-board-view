@@ -1,3 +1,4 @@
+
 import { useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Task } from '@/types/database';
@@ -204,21 +205,32 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
         -1
       );
 
+      // Corrigir o handling do project_id - garantir tipo UUID correto
       const taskData: any = {
-        title,
+        title: title.trim(),
         column_id: columnId,
         position: maxPosition + 1,
         function_points: 1,
         complexity: 'medium',
         status_image_filenames: ['tarefas.svg'],
+        description: null, // Explicitamente null
+        assignee: null, // Explicitamente null
+        estimated_hours: null, // Explicitamente null
+        project_id: null // Inicializar como null
       };
 
-      // Corrigir o tipo do project_id - converter para UUID ou null
-      if (projectId && projectId !== '') {
-        taskData.project_id = projectId;
-      } else {
-        taskData.project_id = null;
+      // Só definir project_id se for um UUID válido
+      if (projectId && projectId.trim() !== '' && projectId !== 'undefined' && projectId !== 'null') {
+        // Validar se é um UUID válido (formato básico)
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+        if (uuidRegex.test(projectId)) {
+          taskData.project_id = projectId;
+        } else {
+          console.warn('[CREATE TASK] Invalid project_id format:', projectId);
+        }
       }
+
+      console.log('[CREATE TASK] Task data to insert:', taskData);
 
       const { data, error } = await supabase
         .from('tasks')
@@ -226,21 +238,33 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('[CREATE TASK] Database error:', error);
+        throw error;
+      }
 
-      console.log('[CREATE TASK] Logging activity for task creation');
+      console.log('[CREATE TASK] Task created successfully:', data);
+
+      // Atualizar state local imediatamente
+      setTasks(currentTasks => [...currentTasks, data as Task]);
+
       // Log da atividade
-      await logActivity('task', data.id, 'create', null, data, { 
-        project_id: projectId,
-        column_id: columnId 
-      });
+      try {
+        await logActivity('task', data.id, 'create', null, data, { 
+          project_id: data.project_id,
+          column_id: columnId 
+        });
+        console.log('[CREATE TASK] Activity logged successfully');
+      } catch (logError) {
+        console.warn('[CREATE TASK] Failed to log activity:', logError);
+        // Não falhar a criação da tarefa por causa do log
+      }
 
-      console.log('[CREATE TASK] Task created successfully:', data.id);
     } catch (err: any) {
-      console.error('Error creating task:', err);
-      setError(err.message);
+      console.error('[CREATE TASK] Error creating task:', err);
+      setError(`Erro ao criar tarefa: ${err.message}`);
     }
-  }, [tasks, setError, logActivity, user]);
+  }, [tasks, setTasks, setError, logActivity, user]);
 
   const updateTask = useCallback(async (taskId: string, updates: Partial<Omit<Task, 'id' | 'created_at' | 'updated_at'>>) => {
     if (!user) {
@@ -255,33 +279,68 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
       setError('Tarefa não encontrada');
       return;
     }
+
+    console.log('[UPDATE TASK] Original task:', originalTask);
+    console.log('[UPDATE TASK] Updates to apply:', updates);
+
+    // Limpar e validar os updates
+    const cleanUpdates: any = {};
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value !== undefined) {
+        // Validação especial para project_id
+        if (key === 'project_id') {
+          if (value === null || value === '' || value === 'undefined' || value === 'null') {
+            cleanUpdates[key] = null;
+          } else if (typeof value === 'string') {
+            const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+            if (uuidRegex.test(value)) {
+              cleanUpdates[key] = value;
+            } else {
+              console.warn('[UPDATE TASK] Invalid project_id format:', value);
+              cleanUpdates[key] = null;
+            }
+          }
+        } else {
+          cleanUpdates[key] = value;
+        }
+      }
+    });
+
+    console.log('[UPDATE TASK] Clean updates:', cleanUpdates);
     
+    // Aplicar mudanças otimisticamente
     const updatedTasks = tasks.map(task => 
-      task.id === taskId ? { ...task, ...updates } : task
+      task.id === taskId ? { ...task, ...cleanUpdates } : task
     );
     setTasks(updatedTasks);
 
     try {
       // Usar função do banco para garantir timestamp preciso quando houver mudança de responsável
-      if (updates.assignee !== undefined && originalTask?.assignee !== updates.assignee) {
+      if (cleanUpdates.assignee !== undefined && originalTask?.assignee !== cleanUpdates.assignee) {
         const { error } = await supabase.rpc(
           'update_task_assignee_with_time_tracking' as any,
           {
             p_task_id: taskId,
-            p_new_assignee: updates.assignee,
-            p_other_updates: { ...updates, assignee: undefined }
+            p_new_assignee: cleanUpdates.assignee,
+            p_other_updates: { ...cleanUpdates, assignee: undefined }
           }
         );
 
-        if (error) throw error;
+        if (error) {
+          console.error('[UPDATE TASK] RPC error:', error);
+          throw error;
+        }
       } else {
         // Atualização normal sem mudança de responsável
         const { error } = await supabase
           .from('tasks')
-          .update(updates)
+          .update(cleanUpdates)
           .eq('id', taskId);
 
-        if (error) throw error;
+        if (error) {
+          console.error('[UPDATE TASK] Update error:', error);
+          throw error;
+        }
       }
 
       // Buscar dados atualizados
@@ -291,22 +350,34 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
         .eq('id', taskId)
         .single();
 
-      if (fetchError) throw fetchError;
+      if (fetchError) {
+        console.error('[UPDATE TASK] Fetch error:', fetchError);
+        throw fetchError;
+      }
 
-      console.log('[UPDATE TASK] Logging activity for task update');
-      // Log da atividade
-      await logActivity('task', taskId, 'update', originalTask, freshTask, {
-        project_id: originalTask.project_id,
-        column_id: originalTask.column_id
-      });
+      console.log('[UPDATE TASK] Fresh task data:', freshTask);
 
+      // Atualizar state com dados frescos do banco
       setTasks(currentTasks => 
         currentTasks.map(task => (task.id === taskId ? freshTask as Task : task))
       );
+
+      // Log da atividade
+      try {
+        await logActivity('task', taskId, 'update', originalTask, freshTask, {
+          project_id: originalTask.project_id,
+          column_id: originalTask.column_id
+        });
+        console.log('[UPDATE TASK] Activity logged successfully');
+      } catch (logError) {
+        console.warn('[UPDATE TASK] Failed to log activity:', logError);
+        // Não falhar a atualização por causa do log
+      }
+
     } catch (err: any) {
-      console.error('Error updating task:', err);
-      setError(err.message);
-      setTasks(originalTasks);
+      console.error('[UPDATE TASK] Error updating task:', err);
+      setError(`Erro ao atualizar tarefa: ${err.message}`);
+      setTasks(originalTasks); // Reverter mudanças otimistas
       throw err;
     }
   }, [tasks, setTasks, setError, logActivity, user]);
@@ -325,6 +396,9 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
       return;
     }
     
+    console.log('[DELETE TASK] Deleting task:', taskToDelete);
+    
+    // Aplicar mudança otimisticamente
     const updatedTasks = tasks.filter(task => task.id !== taskId);
     setTasks(updatedTasks);
 
@@ -334,19 +408,29 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
         .delete()
         .eq('id', taskId);
 
-      if (error) throw error;
+      if (error) {
+        console.error('[DELETE TASK] Delete error:', error);
+        throw error;
+      }
 
-      console.log('[DELETE TASK] Logging activity for task deletion');
+      console.log('[DELETE TASK] Task deleted successfully');
+
       // Log da atividade
-      await logActivity('task', taskId, 'delete', taskToDelete, null, {
-        project_id: taskToDelete.project_id,
-        column_id: taskToDelete.column_id
-      });
+      try {
+        await logActivity('task', taskId, 'delete', taskToDelete, null, {
+          project_id: taskToDelete.project_id,
+          column_id: taskToDelete.column_id
+        });
+        console.log('[DELETE TASK] Activity logged successfully');
+      } catch (logError) {
+        console.warn('[DELETE TASK] Failed to log activity:', logError);
+        // Não falhar a exclusão por causa do log
+      }
 
     } catch (err: any) {
-      console.error('Error deleting task:', err);
-      setError(err.message);
-      setTasks(originalTasks);
+      console.error('[DELETE TASK] Error deleting task:', err);
+      setError(`Erro ao deletar tarefa: ${err.message}`);
+      setTasks(originalTasks); // Reverter mudanças otimistas
       throw err;
     }
   }, [tasks, setTasks, setError, logActivity, user]);

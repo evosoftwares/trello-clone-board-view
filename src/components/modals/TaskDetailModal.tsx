@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -25,7 +26,7 @@ const taskFormSchema = z.object({
   assignee: z.string().optional(),
   function_points: z.coerce.number().min(0).optional(),
   complexity: z.string(),
-  project_id: z.string().min(1, 'Projeto é obrigatório.'),
+  project_id: z.string().optional(), // Removido .min(1) para permitir vazio
 });
 
 interface TaskDetailModalProps {
@@ -75,18 +76,19 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
       assignee: task.assignee || UNASSIGNED_VALUE,
       function_points: task.function_points || 0,
       complexity: task.complexity || 'medium',
-      project_id: task.project_id || '',
+      project_id: task.project_id || '', // Usar string vazia ao invés de obrigar valor
     },
   });
 
   useEffect(() => {
+    console.log('[TASK MODAL] Task data:', task);
     form.reset({
       title: task.title || '',
       description: task.description || '',
       assignee: task.assignee || UNASSIGNED_VALUE,
       function_points: task.function_points || 0,
       complexity: task.complexity || 'medium',
-      project_id: task.project_id || '',
+      project_id: task.project_id || '', // Usar string vazia
     });
   }, [task, form]);
 
@@ -129,10 +131,20 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const onSubmit = async (values: z.infer<typeof taskFormSchema>) => {
     setIsSaving(true);
     try {
+      console.log('[TASK MODAL] Form values:', values);
+      
       const updates: Partial<Task> = {
-        ...values,
+        title: values.title.trim(),
+        description: values.description?.trim() || null,
         assignee: values.assignee === UNASSIGNED_VALUE ? null : values.assignee,
+        function_points: values.function_points || 0,
+        complexity: values.complexity,
+        // Corrigir handling do project_id
+        project_id: values.project_id && values.project_id.trim() !== '' ? values.project_id : null,
       };
+      
+      console.log('[TASK MODAL] Updates to send:', updates);
+      
       await updateTask(task.id, updates);
       toast({ 
         title: 'Sucesso! ✨', 
@@ -141,6 +153,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
       });
       onClose();
     } catch (error) {
+      console.error('[TASK MODAL] Update error:', error);
       toast({ 
         title: 'Erro', 
         description: 'Falha ao atualizar a tarefa.', 
@@ -162,6 +175,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
       });
       onClose();
     } catch (error) {
+      console.error('[TASK MODAL] Delete error:', error);
       toast({ 
         title: 'Erro', 
         description: 'Falha ao deletar a tarefa.', 
@@ -282,20 +296,23 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
 
               <Form {...form}>
                 <form id="edit-task-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                  {/* Project Field */}
+                  {/* Project Field - Tornar opcional */}
                   <FormField control={form.control} name="project_id" render={({ field }) => (
                     <FormItem>
                       <FormLabel className="text-sm font-semibold text-gray-700 flex items-center gap-2">
                         <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
-                        Projeto *
+                        Projeto
                       </FormLabel>
                       <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
                           <SelectTrigger className="h-12 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200">
-                            <SelectValue placeholder="Selecione um projeto" />
+                            <SelectValue placeholder="Selecione um projeto (opcional)" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent className="rounded-xl border-gray-200 shadow-xl">
+                          <SelectItem value="" className="rounded-lg">
+                            <span className="text-gray-500">Nenhum projeto</span>
+                          </SelectItem>
                           {projects.map(project => (
                             <SelectItem key={project.id} value={project.id} className="rounded-lg">
                               <div className="flex items-center gap-3">
