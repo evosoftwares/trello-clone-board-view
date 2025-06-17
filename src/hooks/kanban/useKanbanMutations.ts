@@ -1,4 +1,3 @@
-
 import { useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Task } from '@/types/database';
@@ -10,6 +9,8 @@ interface UseKanbanMutationsProps {
   setTasks: (tasks: Task[] | ((prev: Task[]) => Task[])) => void;
   setError: (error: string | null) => void;
 }
+
+const NO_PROJECT_VALUE = 'no-project-sentinel';
 
 export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutationsProps) => {
   const { logActivity } = useActivityLogger();
@@ -77,7 +78,7 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
         }
       });
 
-      // 2. Reorganizar coluna de destino
+      //  2. Reorganizar coluna de destino
       const newColumnTasks = allTasks
         .filter(t => t.column_id === newColumnId)
         .sort((a, b) => a.position - b.position);
@@ -205,7 +206,18 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
         -1
       );
 
-      // Corrigir o handling do project_id - garantir tipo UUID correto
+      // Handle project_id properly - convert sentinel value to null
+      let validProjectId: string | null = null;
+      if (projectId && projectId !== NO_PROJECT_VALUE && projectId.trim() !== '' && projectId !== 'undefined' && projectId !== 'null') {
+        // Validate UUID format
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+        if (uuidRegex.test(projectId)) {
+          validProjectId = projectId;
+        } else {
+          console.warn('[CREATE TASK] Invalid project_id format:', projectId);
+        }
+      }
+
       const taskData: any = {
         title: title.trim(),
         column_id: columnId,
@@ -213,22 +225,11 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
         function_points: 1,
         complexity: 'medium',
         status_image_filenames: ['tarefas.svg'],
-        description: null, // Explicitamente null
-        assignee: null, // Explicitamente null
-        estimated_hours: null, // Explicitamente null
-        project_id: null // Inicializar como null
+        description: null,
+        assignee: null,
+        estimated_hours: null,
+        project_id: validProjectId
       };
-
-      // Só definir project_id se for um UUID válido
-      if (projectId && projectId.trim() !== '' && projectId !== 'undefined' && projectId !== 'null') {
-        // Validar se é um UUID válido (formato básico)
-        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-        if (uuidRegex.test(projectId)) {
-          taskData.project_id = projectId;
-        } else {
-          console.warn('[CREATE TASK] Invalid project_id format:', projectId);
-        }
-      }
 
       console.log('[CREATE TASK] Task data to insert:', taskData);
 
@@ -283,13 +284,13 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
     console.log('[UPDATE TASK] Original task:', originalTask);
     console.log('[UPDATE TASK] Updates to apply:', updates);
 
-    // Limpar e validar os updates
+    // Clean and validate updates
     const cleanUpdates: any = {};
     Object.entries(updates).forEach(([key, value]) => {
       if (value !== undefined) {
-        // Validação especial para project_id
+        // Special validation for project_id
         if (key === 'project_id') {
-          if (value === null || value === '' || value === 'undefined' || value === 'null') {
+          if (value === null || value === NO_PROJECT_VALUE || value === '' || value === 'undefined' || value === 'null') {
             cleanUpdates[key] = null;
           } else if (typeof value === 'string') {
             const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;

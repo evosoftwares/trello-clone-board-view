@@ -9,6 +9,8 @@ interface ProjectSelectorProps {
   onSelect: (projectId: string | null) => void;
 }
 
+const ALL_PROJECTS_VALUE = 'all-projects-sentinel';
+
 export const ProjectSelector: React.FC<ProjectSelectorProps> = ({ 
   selectedProjectId, 
   onSelect 
@@ -21,8 +23,8 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
     <div className="flex items-center gap-3">
       <span className="text-sm font-medium text-gray-700">Projeto:</span>
       <Select 
-        value={selectedProjectId || 'all'} 
-        onValueChange={(value) => onSelect(value === 'all' ? null : value)}
+        value={selectedProjectId || ALL_PROJECTS_VALUE} 
+        onValueChange={(value) => onSelect(value === ALL_PROJECTS_VALUE ? null : value)}
       >
         <SelectTrigger className="w-64 h-10 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500">
           <SelectValue placeholder="Selecionar projeto">
@@ -40,7 +42,7 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
           </SelectValue>
         </SelectTrigger>
         <SelectContent className="rounded-xl border-gray-200 shadow-xl">
-          <SelectItem value="all" className="rounded-lg">
+          <SelectItem value={ALL_PROJECTS_VALUE} className="rounded-lg">
             <span className="text-gray-600">Todos os projetos</span>
           </SelectItem>
           {projects.map(project => (

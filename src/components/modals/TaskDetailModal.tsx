@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -26,7 +25,7 @@ const taskFormSchema = z.object({
   assignee: z.string().optional(),
   function_points: z.coerce.number().min(0).optional(),
   complexity: z.string(),
-  project_id: z.string().optional(), // Removido .min(1) para permitir vazio
+  project_id: z.string().optional(),
 });
 
 interface TaskDetailModalProps {
@@ -43,6 +42,7 @@ interface TaskDetailModalProps {
 }
 
 const UNASSIGNED_VALUE = 'unassigned-sentinel';
+const NO_PROJECT_VALUE = 'no-project-sentinel';
 
 export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ 
   task, 
@@ -76,7 +76,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
       assignee: task.assignee || UNASSIGNED_VALUE,
       function_points: task.function_points || 0,
       complexity: task.complexity || 'medium',
-      project_id: task.project_id || '', // Usar string vazia ao invés de obrigar valor
+      project_id: task.project_id || NO_PROJECT_VALUE,
     },
   });
 
@@ -88,7 +88,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
       assignee: task.assignee || UNASSIGNED_VALUE,
       function_points: task.function_points || 0,
       complexity: task.complexity || 'medium',
-      project_id: task.project_id || '', // Usar string vazia
+      project_id: task.project_id || NO_PROJECT_VALUE,
     });
   }, [task, form]);
 
@@ -139,8 +139,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
         assignee: values.assignee === UNASSIGNED_VALUE ? null : values.assignee,
         function_points: values.function_points || 0,
         complexity: values.complexity,
-        // Corrigir handling do project_id
-        project_id: values.project_id && values.project_id.trim() !== '' ? values.project_id : null,
+        project_id: values.project_id === NO_PROJECT_VALUE ? null : values.project_id,
       };
       
       console.log('[TASK MODAL] Updates to send:', updates);
@@ -296,7 +295,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
 
               <Form {...form}>
                 <form id="edit-task-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                  {/* Project Field - Tornar opcional */}
+                  {/* Project Field */}
                   <FormField control={form.control} name="project_id" render={({ field }) => (
                     <FormItem>
                       <FormLabel className="text-sm font-semibold text-gray-700 flex items-center gap-2">
@@ -310,7 +309,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent className="rounded-xl border-gray-200 shadow-xl">
-                          <SelectItem value="" className="rounded-lg">
+                          <SelectItem value={NO_PROJECT_VALUE} className="rounded-lg">
                             <span className="text-gray-500">Nenhum projeto</span>
                           </SelectItem>
                           {projects.map(project => (
