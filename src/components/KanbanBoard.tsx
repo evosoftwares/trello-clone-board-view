@@ -95,15 +95,15 @@ const KanbanBoard = () => {
   }
 
   return (
-    <div className="space-y-4 lg:space-y-6">
+    <div className="w-full space-y-4 lg:space-y-6">
       {/* Team Members Section */}
       {teamMembersWithStats.length > 0 && (
         <div className="space-y-3 lg:space-y-4">
-          <h2 className="text-base lg:text-lg font-semibold text-gray-800 flex items-center gap-2 px-2 lg:px-0">
+          <h2 className="text-base lg:text-lg font-semibold text-gray-800 flex items-center gap-2">
             <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
             Equipe ({teamMembersWithStats.length})
           </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 lg:gap-4 px-2 lg:px-0">
+          <div className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 lg:gap-4">
             {teamMembersWithStats.map((member) => (
               <TeamMember key={member.id} member={member} />
             ))}
@@ -113,9 +113,9 @@ const KanbanBoard = () => {
 
       {/* Kanban Board */}
       <DragDropContext onDragEnd={handleDragEnd}>
-        <div className="flex gap-3 lg:gap-6 overflow-x-auto pb-4 px-2 lg:px-0">
+        <div className="w-full flex gap-4 lg:gap-6 overflow-x-auto pb-4">
           {columns.map((column) => (
-            <div key={column.id} className="min-w-[280px] sm:min-w-[300px] lg:min-w-[320px] flex-shrink-0">
+            <div key={column.id} className="min-w-[280px] sm:min-w-[300px] lg:min-w-[320px] xl:min-w-[350px] flex-shrink-0">
               <KanbanColumn
                 column={column}
                 tasks={tasks}
