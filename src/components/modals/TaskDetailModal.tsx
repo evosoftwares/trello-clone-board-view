@@ -200,7 +200,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[800px] max-h-[90vh] bg-white border-0 shadow-2xl rounded-3xl overflow-hidden">
+      <DialogContent className="sm:max-w-[800px] max-h-[90vh] bg-white !border-0 shadow-2xl rounded-3xl overflow-hidden">
         <DialogHeader className="px-8 pt-8 pb-2">
           <DialogTitle className="text-2xl font-bold text-gray-900 flex items-center gap-3">
             <div className="w-10 h-10 bg-blue-100 rounded-2xl flex items-center justify-center">
