@@ -1,9 +1,9 @@
-
 import React, { useState } from 'react';
 import { DragDropContext, DropResult } from '@hello-pangea/dnd';
 import { Plus } from 'lucide-react';
 import { useKanbanData } from '@/hooks/useKanbanData';
 import { useProjectContext } from '@/contexts/ProjectContext';
+import { useProjectData } from '@/hooks/useProjectData';
 import KanbanColumn from './KanbanColumn';
 import { TaskDetailModal } from './modals/TaskDetailModal';
 import TeamMember from './TeamMember';
@@ -11,6 +11,7 @@ import { Task } from '@/types/database';
 
 const KanbanBoard = () => {
   const { selectedProjectId } = useProjectContext();
+  const { projects } = useProjectData();
   const {
     columns,
     tasks,
@@ -78,6 +79,9 @@ const KanbanBoard = () => {
     };
   });
 
+  // Get selected project info
+  const selectedProject = projects.find(p => p.id === selectedProjectId);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -96,6 +100,35 @@ const KanbanBoard = () => {
 
   return (
     <div className="w-full space-y-4 lg:space-y-6">
+      {/* Project Info */}
+      {selectedProject && (
+        <div className="bg-white rounded-lg p-4 shadow-sm border">
+          <div className="flex items-center gap-3">
+            <div 
+              className="w-4 h-4 rounded-full"
+              style={{ backgroundColor: selectedProject.color }}
+            />
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">{selectedProject.name}</h2>
+              {selectedProject.description && (
+                <p className="text-sm text-gray-600">{selectedProject.description}</p>
+              )}
+              <div className="flex items-center gap-4 text-xs text-gray-500 mt-1">
+                {selectedProject.client_name && (
+                  <span>Cliente: {selectedProject.client_name}</span>
+                )}
+                <span>Status: {selectedProject.status === 'active' ? 'Ativo' : 
+                              selectedProject.status === 'paused' ? 'Pausado' :
+                              selectedProject.status === 'completed' ? 'Concluído' : 'Cancelado'}</span>
+                {selectedProject.deadline && (
+                  <span>Prazo: {new Date(selectedProject.deadline).toLocaleDateString('pt-BR')}</span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Team Members Section */}
       {teamMembersWithStats.length > 0 && (
         <div className="space-y-3 lg:space-y-4">
@@ -121,7 +154,7 @@ const KanbanBoard = () => {
                 tasks={tasks}
                 tags={tags}
                 taskTags={taskTags}
-                projects={[]}
+                projects={projects}
                 profiles={profiles}
                 columns={columns}
                 onAddTask={handleAddTask}
@@ -139,7 +172,7 @@ const KanbanBoard = () => {
           isOpen={true}
           onClose={() => setSelectedTask(null)}
           teamMembers={profiles}
-          projects={[]}
+          projects={projects}
           tags={tags}
           taskTags={taskTags}
           updateTask={updateTask}

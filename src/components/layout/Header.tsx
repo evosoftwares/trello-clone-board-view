@@ -1,8 +1,8 @@
-
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Settings, History } from 'lucide-react';
+import { LogOut, Settings, History, FolderOpen } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useProjectContext } from '@/contexts/ProjectContext';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -11,10 +11,14 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { ProjectSelector } from '@/components/projects/ProjectSelector';
+import { ProjectModal } from '@/components/projects/ProjectModal';
 
 const Header = () => {
   const { user, profile, signOut } = useAuth();
+  const { selectedProjectId, setSelectedProjectId } = useProjectContext();
   const navigate = useNavigate();
+  const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
 
   const handleSignOut = async () => {
     await signOut();
@@ -47,9 +51,28 @@ const Header = () => {
               Kanban Board
             </h1>
           </div>
+          
+          {/* Project Selector */}
+          <div className="hidden md:block">
+            <ProjectSelector 
+              selectedProjectId={selectedProjectId}
+              onSelect={setSelectedProjectId}
+            />
+          </div>
         </div>
 
         <div className="flex items-center gap-4">
+          {/* Project Management Button */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate('/projects')}
+            className="flex items-center gap-2"
+          >
+            <FolderOpen className="w-4 h-4" />
+            Projetos
+          </Button>
+
           <Button
             variant="outline"
             size="sm"
@@ -90,6 +113,20 @@ const Header = () => {
           </DropdownMenu>
         </div>
       </div>
+      
+      {/* Mobile Project Selector */}
+      <div className="block md:hidden px-6 pb-4">
+        <ProjectSelector 
+          selectedProjectId={selectedProjectId}
+          onSelect={setSelectedProjectId}
+        />
+      </div>
+
+      {/* Project Management Modal */}
+      <ProjectModal 
+        isOpen={isProjectModalOpen}
+        onClose={() => setIsProjectModalOpen(false)}
+      />
     </header>
   );
 };
