@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -10,6 +9,7 @@ import AuthPage from "./pages/AuthPage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Index from "./pages/Index";
 import ActivityHistoryPage from "./pages/ActivityHistoryPage";
+import ProjectsPage from "./pages/ProjectsPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -32,6 +32,11 @@ const App = () => (
               <Route path="/activity-history" element={
                 <ProtectedRoute>
                   <ActivityHistoryPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/projects" element={
+                <ProtectedRoute>
+                  <ProjectsPage />
                 </ProtectedRoute>
               } />
               <Route path="*" element={<NotFound />} />
