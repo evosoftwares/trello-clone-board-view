@@ -25,24 +25,24 @@ const taskFormSchema = z.object({
   assignee: z.string().optional(),
   function_points: z.coerce.number().min(0).optional(),
   complexity: z.string(),
-  project_id: z.string().optional(),
+  project_id: z.string().nullable().optional(),
 });
 
 interface TaskDetailModalProps {
-  task: Task;
+  task?: Task;
   isOpen: boolean;
   onClose: () => void;
   teamMembers: TeamMember[];
   projects: Project[];
   tags: TagType[];
   taskTags: TaskTag[];
-  updateTask: (taskId: string, updates: Partial<Omit<Task, 'id'>>) => Promise<void>;
+  updateTask?: (taskId: string, updates: Partial<Omit<Task, 'id'>>) => Promise<void>;
+  createTask?: (taskData: Partial<Task>) => Promise<void>;
   deleteTask: (taskId: string) => Promise<void>;
   refreshData: () => void;
 }
 
 const UNASSIGNED_VALUE = 'unassigned-sentinel';
-const NO_PROJECT_VALUE = 'no-project-sentinel';
 
 export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ 
   task, 
@@ -53,6 +53,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   tags,
   taskTags,
   updateTask,
+  createTask,
   deleteTask,
   refreshData
 }) => {
@@ -60,6 +61,8 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   
+  const isCreating = !task;
+
   const {
     createTag,
     updateTag,
@@ -71,25 +74,36 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const form = useForm<z.infer<typeof taskFormSchema>>({
     resolver: zodResolver(taskFormSchema),
     defaultValues: {
-      title: task.title || '',
-      description: task.description || '',
-      assignee: task.assignee || UNASSIGNED_VALUE,
-      function_points: task.function_points || 0,
-      complexity: task.complexity || 'medium',
-      project_id: task.project_id || NO_PROJECT_VALUE,
+      title: task?.title || '',
+      description: task?.description || '',
+      assignee: task?.assignee || UNASSIGNED_VALUE,
+      function_points: task?.function_points || 0,
+      complexity: task?.complexity || 'medium',
+      project_id: task?.project_id || null,
     },
   });
 
   useEffect(() => {
-    console.log('[TASK MODAL] Task data:', task);
-    form.reset({
-      title: task.title || '',
-      description: task.description || '',
-      assignee: task.assignee || UNASSIGNED_VALUE,
-      function_points: task.function_points || 0,
-      complexity: task.complexity || 'medium',
-      project_id: task.project_id || NO_PROJECT_VALUE,
-    });
+    if (task) {
+      console.log('[TASK MODAL] Task data:', task);
+      form.reset({
+        title: task?.title || '',
+        description: task?.description || '',
+        assignee: task?.assignee || UNASSIGNED_VALUE,
+        function_points: task?.function_points || 0,
+        complexity: task?.complexity || 'medium',
+        project_id: task?.project_id || null,
+      });
+    } else {
+      form.reset({
+        title: '',
+        description: '',
+        assignee: UNASSIGNED_VALUE,
+        function_points: 0,
+        complexity: 'medium',
+        project_id: null,
+      });
+    }
   }, [task, form]);
 
   const getComplexityConfig = (complexity: string) => {
@@ -107,6 +121,10 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
 
   const handleTagOperations = {
     createTag: async (name: string, color: string) => {
+      if (isCreating) {
+        toast({ title: 'Ação bloqueada', description: 'Salve a tarefa antes de gerenciar etiquetas.' });
+        return;
+      }
       await createTag(name, color);
       refreshData();
     },
@@ -133,29 +151,42 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     try {
       console.log('[TASK MODAL] Form values:', values);
       
-      const updates: Partial<Task> = {
+      const taskData: Partial<Task> = {
         title: values.title.trim(),
         description: values.description?.trim() || null,
         assignee: values.assignee === UNASSIGNED_VALUE ? null : values.assignee,
         function_points: values.function_points || 0,
         complexity: values.complexity,
-        project_id: values.project_id === NO_PROJECT_VALUE ? null : values.project_id,
+        project_id: values.project_id || null,
       };
       
-      console.log('[TASK MODAL] Updates to send:', updates);
-      
-      await updateTask(task.id, updates);
-      toast({ 
-        title: 'Sucesso! ✨', 
-        description: 'Tarefa atualizada com sucesso.',
-        className: 'bg-blue-50 border-blue-200 text-blue-900'
-      });
+      if (isCreating) {
+        if (!createTask) {
+          throw new Error('createTask function is not provided');
+        }
+        await createTask(taskData);
+        toast({ 
+          title: 'Sucesso! ✨', 
+          description: 'Tarefa criada com sucesso.',
+          className: 'bg-blue-50 border-blue-200 text-blue-900'
+        });
+      } else {
+        if (!updateTask || !task) {
+          throw new Error('updateTask function or task is not provided');
+        }
+        await updateTask(task.id, taskData);
+        toast({ 
+          title: 'Sucesso! ✨', 
+          description: 'Tarefa atualizada com sucesso.',
+          className: 'bg-blue-50 border-blue-200 text-blue-900'
+        });
+      }
       onClose();
     } catch (error) {
-      console.error('[TASK MODAL] Update error:', error);
+      console.error(`[TASK MODAL] ${isCreating ? 'Create' : 'Update'} error:`, error);
       toast({ 
         title: 'Erro', 
-        description: 'Falha ao atualizar a tarefa.', 
+        description: `Falha ao ${isCreating ? 'criar' : 'atualizar'} a tarefa.`, 
         variant: 'destructive' 
       });
     } finally {
@@ -164,6 +195,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   };
 
   const handleDelete = async () => {
+    if (isCreating || !task) return;
     setIsDeleting(true);
     try {
       await deleteTask(task.id);
@@ -190,12 +222,12 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
 
   // Get current task tags for display
   const currentTaskTagIds = taskTags
-    .filter(tt => tt.task_id === task.id)
+    .filter(tt => tt.task_id === task?.id)
     .map(tt => tt.tag_id);
   const currentTaskTags = tags.filter(tag => currentTaskTagIds.includes(tag.id));
 
   // Get assignee name
-  const assignee = teamMembers.find(member => member.id === task.assignee);
+  const assignee = teamMembers.find(member => member.id === task?.assignee);
   const assigneeName = assignee ? assignee.name : 'Não atribuído';
 
   return (
@@ -206,7 +238,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
             <div className="w-10 h-10 bg-blue-100 rounded-2xl flex items-center justify-center">
               <Target className="w-5 h-5 text-blue-600" />
             </div>
-            Editar Tarefa
+            {isCreating ? 'Criar Tarefa' : 'Editar Tarefa'}
             {selectedProject && (
               <div 
                 className="ml-auto px-3 py-1 rounded-full text-sm font-medium"
@@ -240,7 +272,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                     Etiquetas
                   </h4>
                   <TagSelector
-                    taskId={task.id}
+                    taskId={task?.id || ''}
                     allTags={tags}
                     taskTags={taskTags}
                     onAddTagToTask={handleTagOperations.addTagToTask}
@@ -284,15 +316,25 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
 
               {/* Assignee Display */}
               <div className="p-4 bg-blue-50 rounded-2xl">
-                <div className="flex items-center gap-3">
-                  <User className="w-5 h-5 text-blue-600" />
-                  <div>
-                    <h4 className="text-sm font-semibold text-gray-700">Responsável Atual</h4>
-                    <p className="text-blue-700 font-medium">{assigneeName}</p>
-                  </div>
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-semibold text-blue-800 flex items-center gap-2">
+                    <User className="w-4 h-4 text-blue-600" />
+                    Responsável Atual
+                  </h4>
+                  {!isCreating && (
+                    <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${assignee ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-600'}`}>
+                      {assigneeName}
+                    </span>
+                  )}
                 </div>
+                {!isCreating && (
+                  <p className="mt-2 text-lg font-bold text-blue-900">
+                    {assigneeName}
+                  </p>
+                )}
               </div>
 
+              {/* Form Fields */}
               <Form {...form}>
                 <form id="edit-task-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                   {/* Project Field */}
@@ -304,23 +346,15 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                       </FormLabel>
                       <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
-                          <SelectTrigger className="h-12 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200">
-                            <SelectValue placeholder="Selecione um projeto (opcional)" />
+                          <SelectTrigger className="h-12 border-gray-200 rounded-xl focus:border-blue-500 transition-all duration-200">
+                            <SelectValue placeholder="Sem projeto" />
                           </SelectTrigger>
                         </FormControl>
-                        <SelectContent className="rounded-xl border-gray-200 shadow-xl">
-                          <SelectItem value={NO_PROJECT_VALUE} className="rounded-lg">
-                            <span className="text-gray-500">Nenhum projeto</span>
-                          </SelectItem>
-                          {projects.map(project => (
-                            <SelectItem key={project.id} value={project.id} className="rounded-lg">
-                              <div className="flex items-center gap-3">
-                                <div 
-                                  className="w-3 h-3 rounded-full"
-                                  style={{ backgroundColor: project.color }}
-                                />
-                                {project.name}
-                              </div>
+                        <SelectContent>
+                          <SelectItem value="null">Sem projeto</SelectItem>
+                          {projects.map((project) => (
+                            <SelectItem key={project.id} value={project.id}>
+                              {project.name}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -339,7 +373,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                       <FormControl>
                         <Input 
                           {...field} 
-                          className="h-12 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200" 
+                          className="h-12 border-gray-200 rounded-xl focus:border-blue-500 transition-all duration-200" 
                           placeholder="Digite o título da tarefa..."
                         />
                       </FormControl>
@@ -357,7 +391,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                         <Textarea 
                           {...field} 
                           rows={4} 
-                          className="border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 resize-none" 
+                          className="border-gray-200 rounded-xl focus:border-blue-500 transition-all duration-200 resize-none" 
                           placeholder="Descreva os detalhes da tarefa..."
                         />
                       </FormControl>
@@ -371,31 +405,25 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                         <User className="w-4 h-4 text-blue-500" />
                         Responsável
                       </FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <Select 
+                        value={field.value || UNASSIGNED_VALUE}
+                        onValueChange={field.onChange}
+                      >
                         <FormControl>
-                          <SelectTrigger className="h-12 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200">
-                            <SelectValue placeholder="Selecione um responsável" />
+                          <SelectTrigger className="h-12 border-gray-200 rounded-xl focus:border-blue-500 transition-all duration-200">
+                            <SelectValue placeholder="Não atribuído" />
                           </SelectTrigger>
                         </FormControl>
-                        <SelectContent className="rounded-xl border-gray-200 shadow-xl">
-                          <SelectItem value={UNASSIGNED_VALUE} className="rounded-lg">
-                            <span className="text-gray-500">Não atribuído</span>
-                          </SelectItem>
-                          {teamMembers.map(member => (
-                            <SelectItem key={member.id} value={member.id} className="rounded-lg">
-                              <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                                  <span className="text-blue-600 text-sm font-medium">
-                                    {member.name.charAt(0).toUpperCase()}
-                                  </span>
-                                </div>
-                                {member.name}
-                              </div>
+                        <SelectContent>
+                          <SelectItem value={UNASSIGNED_VALUE}>Não atribuído</SelectItem>
+                          {teamMembers.map((member) => (
+                            <SelectItem key={member.id} value={member.id}>
+                              {member.name}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
-                      <FormMessage className="text-rose-600 text-xs" />
+                      <FormMessage />
                     </FormItem>
                   )} />
 
@@ -410,7 +438,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                           <Input 
                             type="number" 
                             {...field} 
-                            className="h-12 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200" 
+                            className="h-12 border-gray-200 rounded-xl focus:border-blue-500 transition-all duration-200" 
                             placeholder="0"
                           />
                         </FormControl>
@@ -426,7 +454,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                         </FormLabel>
                         <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
-                            <SelectTrigger className="h-12 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200">
+                            <SelectTrigger className="h-12 border-gray-200 rounded-xl focus:border-blue-500 transition-all duration-200">
                               <SelectValue placeholder="Selecione a complexidade" />
                             </SelectTrigger>
                           </FormControl>
@@ -467,65 +495,51 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
             </TabsContent>
             
             <TabsContent value="comments" className="mt-6">
-              <TaskComments taskId={task.id} allProfiles={teamMembers} />
+              <TaskComments taskId={task?.id || ''} allProfiles={teamMembers} />
             </TabsContent>
           </Tabs>
         </div>
 
-        <DialogFooter className="px-8 pb-8 pt-4 border-t border-gray-100 flex items-center justify-between">
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
+        <DialogFooter className="px-8 pb-8 pt-4 bg-white">
+          <div className="w-full flex justify-between items-center">
+            <div>
+              {!isCreating && task && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" type="button" disabled={isDeleting}>
+                      {isDeleting ? 'Deletando...' : <><Trash className="w-4 h-4 mr-2" /> Deletar</>}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Esta ação não pode ser desfeita. A tarefa será permanentemente deletada.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleDelete}>
+                        Confirmar Deleção
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <DialogClose asChild>
+                <Button variant="outline" type="button">Cancelar</Button>
+              </DialogClose>
               <Button 
-                variant="outline" 
-                className="border-rose-200 text-rose-600 hover:bg-rose-50 hover:border-rose-300 rounded-xl h-11 px-6 transition-all duration-200"
+                type="submit" 
+                form="edit-task-form" 
+                disabled={isSaving}
               >
-                <Trash className="w-4 h-4 mr-2" />
-                Deletar
+                <Save className="w-4 h-4 mr-2" />
+                {isSaving ? 'Salvando...' : 'Salvar Alterações'}
               </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent className="rounded-2xl border-0 shadow-2xl">
-              <AlertDialogHeader>
-                <AlertDialogTitle className="text-xl font-bold text-gray-900">
-                  Confirmar exclusão
-                </AlertDialogTitle>
-                <AlertDialogDescription className="text-gray-600">
-                  Esta ação não pode ser desfeita. A tarefa será permanentemente deletada.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter className="gap-3">
-                <AlertDialogCancel className="rounded-xl h-11">
-                  Cancelar
-                </AlertDialogCancel>
-                <AlertDialogAction 
-                  onClick={handleDelete} 
-                  disabled={isDeleting}
-                  className="bg-rose-600 hover:bg-rose-700 rounded-xl h-11"
-                >
-                  {isDeleting ? 'Deletando...' : 'Deletar'}
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-
-          <div className="flex gap-3">
-            <DialogClose asChild>
-              <Button 
-                type="button" 
-                variant="outline" 
-                className="rounded-xl h-11 px-6 border-gray-200 hover:bg-gray-50 transition-all duration-200"
-              >
-                Cancelar
-              </Button>
-            </DialogClose>
-            <Button 
-              type="submit" 
-              form="edit-task-form" 
-              disabled={isSaving}
-              className="bg-blue-600 hover:bg-blue-700 rounded-xl h-11 px-6 transition-all duration-200 shadow-lg hover:shadow-xl"
-            >
-              <Save className="w-4 h-4 mr-2" />
-              {isSaving ? 'Salvando...' : 'Salvar Alterações'}
-            </Button>
+            </div>
           </div>
         </DialogFooter>
       </DialogContent>

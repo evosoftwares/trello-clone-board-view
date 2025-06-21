@@ -194,7 +194,7 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
     }
   }, [tasks, setTasks, setError, logActivity]);
 
-  const createTask = useCallback(async (title: string, columnId: string, projectId?: string | null) => {
+  const createTask = useCallback(async (taskData: Partial<Task>, columnId: string) => {
     if (!user) {
       setError('Usuário não autenticado');
       return;
@@ -202,40 +202,28 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
 
     try {
       const maxPosition = Math.max(
-        ...tasks.filter(t => t.column_id === columnId).map(t => t.position), 
+        ...tasks.filter(t => t.column_id === columnId).map(t => t.position),
         -1
       );
 
-      // Handle project_id properly - convert sentinel value to null
-      let validProjectId: string | null = null;
-      if (projectId && projectId !== NO_PROJECT_VALUE && projectId.trim() !== '' && projectId !== 'undefined' && projectId !== 'null') {
-        // Validate UUID format
-        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-        if (uuidRegex.test(projectId)) {
-          validProjectId = projectId;
-        } else {
-          console.warn('[CREATE TASK] Invalid project_id format:', projectId);
-        }
-      }
-
-      const taskData: any = {
-        title: title.trim(),
+      const newTaskData: Omit<Task, 'id' | 'created_at' | 'updated_at'> = {
+        title: taskData.title || 'Nova Tarefa',
+        description: taskData.description || null,
         column_id: columnId,
         position: maxPosition + 1,
-        function_points: 1,
-        complexity: 'medium',
+        assignee: taskData.assignee || null,
+        function_points: taskData.function_points || 1,
+        complexity: taskData.complexity || 'medium',
+        project_id: taskData.project_id || null,
         status_image_filenames: ['tarefas.svg'],
-        description: null,
-        assignee: null,
         estimated_hours: null,
-        project_id: validProjectId
       };
-
-      console.log('[CREATE TASK] Task data to insert:', taskData);
+      
+      console.log('[CREATE TASK] Task data to insert:', newTaskData);
 
       const { data, error } = await supabase
         .from('tasks')
-        .insert(taskData)
+        .insert(newTaskData)
         .select()
         .single();
 
@@ -246,28 +234,32 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
 
       console.log('[CREATE TASK] Task created successfully:', data);
 
-      // Atualizar state local imediatamente
       setTasks(currentTasks => [...currentTasks, data as Task]);
 
-      // Log da atividade
-      try {
-        await logActivity('task', data.id, 'create', null, data, { 
-          project_id: data.project_id,
-          column_id: columnId 
-        });
-        console.log('[CREATE TASK] Activity logged successfully');
-      } catch (logError) {
-        console.warn('[CREATE TASK] Failed to log activity:', logError);
-        // Não falhar a criação da tarefa por causa do log
-      }
+      await logActivity(
+        'task',
+        data.id,
+        'create',
+        null,
+        { 
+          title: data.title, 
+          column_id: data.column_id,
+          project_id: data.project_id 
+        },
+        { 
+          project_id: data.project_id
+        }
+      );
+
+      console.log('[CREATE TASK] Activity logged');
 
     } catch (err: any) {
       console.error('[CREATE TASK] Error creating task:', err);
       setError(`Erro ao criar tarefa: ${err.message}`);
     }
-  }, [tasks, setTasks, setError, logActivity, user]);
+  }, [tasks, setTasks, setError, user, logActivity]);
 
-  const updateTask = useCallback(async (taskId: string, updates: Partial<Omit<Task, 'id' | 'created_at' | 'updated_at'>>) => {
+  const updateTask = useCallback(async (taskId: string, updates: Partial<Omit<Task, 'id'>>) => {
     if (!user) {
       setError('Usuário não autenticado');
       return;

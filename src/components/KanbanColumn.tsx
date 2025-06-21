@@ -1,8 +1,9 @@
 
 import React, { useState } from 'react';
 import { Droppable } from '@hello-pangea/dnd';
-import { Plus } from 'lucide-react';
+import { Plus, ChevronDown, ChevronRight, FolderOpen, Folder } from 'lucide-react';
 import TaskCard from './TaskCard';
+import { ProjectBadge } from './projects/ProjectBadge';
 import { KanbanColumn as KanbanColumnType, Task, Tag, TaskTag, Project, Profile } from '@/types/database';
 
 interface KanbanColumnProps {
@@ -30,6 +31,7 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
 }) => {
   const [isAdding, setIsAdding] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(new Set());
 
   // Sort tasks by position with fallback to created_at for consistency
   const columnTasks = tasks
@@ -51,6 +53,28 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
                            column.title?.toLowerCase().includes('completed') ||
                            column.title?.toLowerCase().includes('done');
 
+  // Agrupar tarefas por projeto apenas se for coluna concluída
+  const groupedTasks = isCompletedColumn ? 
+    columnTasks.reduce((acc, task) => {
+      const projectId = task.project_id || 'sem-projeto';
+      if (!acc[projectId]) {
+        acc[projectId] = [];
+      }
+      acc[projectId].push(task);
+      return acc;
+    }, {} as Record<string, Task[]>) : 
+    null;
+
+  const toggleProjectCollapse = (projectId: string) => {
+    const newCollapsed = new Set(collapsedProjects);
+    if (newCollapsed.has(projectId)) {
+      newCollapsed.delete(projectId);
+    } else {
+      newCollapsed.add(projectId);
+    }
+    setCollapsedProjects(newCollapsed);
+  };
+
   console.log(`[COLUMN ${column.title}] Tasks:`, columnTasks.map(t => ({ id: t.id, title: t.title, position: t.position })));
 
   const handleAddTask = () => {
@@ -71,9 +95,9 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
   };
 
   return (
-    <div className="w-full bg-gray-50 rounded-xl lg:rounded-2xl p-3 lg:p-4 xl:p-5 h-fit">
+    <div className="w-full h-full bg-gray-50 rounded-xl lg:rounded-2xl p-3 lg:p-4 xl:p-5 flex flex-col">
       {/* Column Header */}
-      <div className="flex items-center justify-between mb-3 lg:mb-4 xl:mb-5">
+      <div className="flex-shrink-0 flex items-center justify-between mb-3 lg:mb-4 xl:mb-5">
         <div className="flex items-center gap-2 lg:gap-3 min-w-0 flex-1">
           <div 
             className="w-2.5 h-2.5 lg:w-3 lg:h-3 xl:w-3.5 xl:h-3.5 rounded-full flex-shrink-0"
@@ -97,26 +121,92 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
           <div
             ref={provided.innerRef}
             {...provided.droppableProps}
-            className={`space-y-2 lg:space-y-3 xl:space-y-4 min-h-[150px] lg:min-h-[200px] xl:min-h-[250px] rounded-lg lg:rounded-xl p-2 lg:p-3 xl:p-4 ${
+            className={`flex-grow space-y-2 lg:space-y-3 xl:space-y-4 min-h-0 rounded-lg lg:rounded-xl p-2 lg:p-3 xl:p-4
+            overflow-y-auto overflow-x-hidden scroll-smooth
+            ${
               snapshot.isDraggingOver
                 ? 'bg-blue-50 border-2 border-blue-300 border-dashed' 
                 : 'border-2 border-transparent'
             }`}
           >
-            {/* Tasks */}
-            {columnTasks.map((task, index) => (
-              <TaskCard 
-                key={task.id}
-                task={task}
-                index={index}
-                tags={tags}
-                taskTags={taskTags}
-                projects={projects}
-                columns={columns}
-                onClick={() => onTaskClick(task)}
-                teamMembers={profiles}
-              />
-            ))}
+            {/* Tasks - Organizados por projeto se for coluna concluída */}
+            {isCompletedColumn && groupedTasks ? (
+              <>
+                {Object.entries(groupedTasks).map(([projectId, projectTasks]) => {
+                  const project = projects.find(p => p.id === projectId);
+                  const isCollapsed = collapsedProjects.has(projectId);
+                  
+                  return (
+                    <div key={projectId} className="space-y-2">
+                      {/* Cabeçalho do projeto */}
+                      <div 
+                        className="flex items-center gap-2 p-2 bg-white rounded-lg border cursor-pointer hover:bg-gray-50 transition-colors"
+                        onClick={() => toggleProjectCollapse(projectId)}
+                      >
+                        {isCollapsed ? (
+                          <ChevronRight className="w-4 h-4 text-gray-400" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4 text-gray-400" />
+                        )}
+                        
+                        {isCollapsed ? (
+                          <Folder className="w-4 h-4 text-gray-400" />
+                        ) : (
+                          <FolderOpen className="w-4 h-4 text-gray-400" />
+                        )}
+                        
+                        {project ? (
+                          <ProjectBadge project={project} size="sm" />
+                        ) : (
+                          <div className="inline-flex items-center px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-600 font-medium">
+                            <div className="w-2 h-2 rounded-full mr-1.5 bg-gray-400" />
+                            Sem projeto
+                          </div>
+                        )}
+                        
+                        <span className="text-xs text-gray-500 ml-auto">
+                          {projectTasks.length} {projectTasks.length === 1 ? 'tarefa' : 'tarefas'}
+                        </span>
+                      </div>
+                      
+                      {/* Tarefas do projeto */}
+                      {!isCollapsed && (
+                        <div className="ml-4 space-y-2">
+                          {projectTasks.map((task, index) => (
+                            <TaskCard 
+                              key={task.id}
+                              task={task}
+                              index={index}
+                              tags={tags}
+                              taskTags={taskTags}
+                              projects={projects}
+                              columns={columns}
+                              onClick={() => onTaskClick(task)}
+                              teamMembers={profiles}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </>
+            ) : (
+              // Layout normal para outras colunas
+              columnTasks.map((task, index) => (
+                <TaskCard 
+                  key={task.id}
+                  task={task}
+                  index={index}
+                  tags={tags}
+                  taskTags={taskTags}
+                  projects={projects}
+                  columns={columns}
+                  onClick={() => onTaskClick(task)}
+                  teamMembers={profiles}
+                />
+              ))
+            )}
             {provided.placeholder}
 
             {/* Visual feedback for drop zone */}
@@ -174,10 +264,10 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
                 ) : (
                   <button
                     onClick={() => setIsAdding(true)}
-                    className="w-full border-2 border-dashed rounded-xl lg:rounded-2xl p-3 lg:p-4 xl:p-5 flex items-center justify-center gap-2 text-xs lg:text-sm xl:text-base font-medium bg-white/50 hover:bg-white/80 border-gray-300 hover:border-blue-300 text-gray-500 hover:text-blue-500 group"
+                    className="w-full mt-2 px-3 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center justify-center transition-colors"
                   >
-                    <Plus className="w-3 h-3 lg:w-4 lg:h-4 xl:w-5 xl:h-5" />
-                    <span>Adicionar tarefa</span>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Adicionar Tarefa
                   </button>
                 )}
               </div>
