@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Droppable } from '@hello-pangea/dnd';
 import { Plus, ChevronDown, ChevronRight, FolderOpen, Folder } from 'lucide-react';
 import TaskCard from './TaskCard';
@@ -64,6 +64,14 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
       return acc;
     }, {} as Record<string, Task[]>) : 
     null;
+
+  // Initialize collapsed state for completed columns
+  useEffect(() => {
+    if (isCompletedColumn && groupedTasks) {
+      const projectIds = Object.keys(groupedTasks);
+      setCollapsedProjects(new Set(projectIds));
+    }
+  }, [isCompletedColumn, groupedTasks]);
 
   const toggleProjectCollapse = (projectId: string) => {
     const newCollapsed = new Set(collapsedProjects);
