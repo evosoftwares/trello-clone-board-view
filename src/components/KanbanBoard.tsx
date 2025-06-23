@@ -1,7 +1,8 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { DragDropContext, DropResult } from '@hello-pangea/dnd';
-import { Plus } from 'lucide-react';
+import { Trophy, Star, Sparkles } from 'lucide-react';
+import Confetti from 'react-confetti';
 import { useKanbanData } from '@/hooks/useKanbanData';
 import { useProjectData } from '@/hooks/useProjectData';
 import { useProjectContext } from '@/contexts/ProjectContext';
@@ -42,6 +43,13 @@ const KanbanBoard = () => {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isCreatingTask, setIsCreatingTask] = useState(false);
   const [creatingTaskColumn, setCreatingTaskColumn] = useState<Column['id'] | null>(null);
+  const [celebrationState, setCelebrationState] = useState({
+    showConfetti: false,
+    showSecondWave: false,
+    showCelebrationMessage: false,
+    completedTask: null as Task | null,
+    celebrationMessage: ""
+  });
 
   const handleDragEnd = (result: DropResult) => {
     const { destination, source, draggableId } = result;
@@ -63,10 +71,21 @@ const KanbanBoard = () => {
       return;
     }
 
+    // Verificar se a tarefa está sendo movida PARA uma coluna "Sucesso" ou similar
+    const destinationColumn = columns.find(col => col.id === destination.droppableId);
+    
+    const isDestinationSuccess = destinationColumn?.title?.toLowerCase().includes('sucesso') || 
+                                destinationColumn?.title?.toLowerCase().includes('success') ||
+                                destinationColumn?.title?.toLowerCase().includes('concluído') ||
+                                destinationColumn?.title?.toLowerCase().includes('concluido') ||
+                                destinationColumn?.title?.toLowerCase().includes('completed') ||
+                                destinationColumn?.title?.toLowerCase().includes('done');
+
     console.log('[DRAG END] Moving task:', {
       taskId: draggableId,
       from: { columnId: source.droppableId, index: source.index },
-      to: { columnId: destination.droppableId, index: destination.index }
+      to: { columnId: destination.droppableId, index: destination.index },
+      isDestinationSuccess
     });
 
     moveTask(
@@ -75,6 +94,72 @@ const KanbanBoard = () => {
       destination.droppableId,
       destination.index
     );
+
+    // Trigger epic celebration when task is moved to success column
+    if (isDestinationSuccess) {
+      const completedTask = tasks.find(task => task.id === draggableId);
+      triggerEpicCelebration(completedTask || null);
+    }
+  };
+
+  // Epic celebration sequence function
+  const triggerEpicCelebration = useCallback((completedTask: Task | null) => {
+    // Generate random message once
+    const celebrationMessage = getCelebrationMessage(completedTask);
+    
+    // Phase 1: Initial confetti burst
+    setCelebrationState({
+      showConfetti: true,
+      showSecondWave: false,
+      showCelebrationMessage: true,
+      completedTask,
+      celebrationMessage
+    });
+
+    // Phase 2: Second wave of confetti after 1 second
+    setTimeout(() => {
+      setCelebrationState(prev => ({
+        ...prev,
+        showSecondWave: true
+      }));
+    }, 1000);
+
+    // Phase 3: Third wave and cleanup after 3 seconds
+    setTimeout(() => {
+      setCelebrationState(prev => ({
+        ...prev,
+        showConfetti: false,
+        showSecondWave: false
+      }));
+    }, 4000);
+
+    // Phase 4: Hide celebration message after 5 seconds
+    setTimeout(() => {
+      setCelebrationState({
+        showConfetti: false,
+        showSecondWave: false,
+        showCelebrationMessage: false,
+        completedTask: null,
+        celebrationMessage: ""
+      });
+    }, 5000);
+  }, []);
+
+  // Get random celebration messages
+  const getCelebrationMessage = (task: Task | null) => {
+    const messages = [
+      "🎉 Tarefa Concluída com Sucesso!",
+      "🏆 Parabéns! Mais uma vitória!",
+      "⭐ Excelente trabalho!",
+      "🚀 Missão Cumprida!",
+      "💪 Você é incrível!",
+      "🎯 Objetivo Alcançado!",
+      "✨ Fantástico! Continue assim!",
+      "🌟 Mais um passo rumo ao sucesso!"
+    ];
+    
+    const randomMessage = messages[Math.floor(Math.random() * messages.length)];
+    return randomMessage;
   };
 
   const handleAddTask = (columnId: string) => {
@@ -84,7 +169,12 @@ const KanbanBoard = () => {
 
   const handleQuickAddTask = async (columnId: string, title: string) => {
     console.log('[QUICK ADD TASK] Creating task:', { columnId, title });
-    await createTask({ title }, columnId);
+    try {
+      await createTask({ title }, columnId);
+      console.log('[QUICK ADD TASK] Task creation completed');
+    } catch (error) {
+      console.error('[QUICK ADD TASK] Task creation failed:', error);
+    }
   };
 
   const handleCreateTask = async (taskData: Partial<Task>) => {
@@ -134,6 +224,64 @@ const KanbanBoard = () => {
 
   return (
     <div className="w-full h-full flex flex-col space-y-4 lg:space-y-6">
+      {/* Epic Celebration Effects */}
+      {celebrationState.showConfetti && (
+        <>
+          {/* Main confetti burst */}
+          <Confetti
+            width={window.innerWidth}
+            height={window.innerHeight}
+            recycle={false}
+            numberOfPieces={300}
+            gravity={0.25}
+            colors={['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#ffeaa7', '#dda0dd', '#98d8c8', '#f7dc6f']}
+            wind={0.05}
+          />
+          
+          {/* Second wave - different angle and colors */}
+          {celebrationState.showSecondWave && (
+            <Confetti
+              width={window.innerWidth}
+              height={window.innerHeight}
+              recycle={false}
+              numberOfPieces={150}
+              gravity={0.15}
+              colors={['#e74c3c', '#f39c12', '#27ae60', '#3498db', '#9b59b6', '#e67e22']}
+              initialVelocityX={-5}
+              initialVelocityY={-10}
+              wind={-0.05}
+            />
+          )}
+        </>
+      )}
+      
+      {/* Celebration Message Overlay */}
+      {celebrationState.showCelebrationMessage && (
+        <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none">
+          <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-8 py-6 rounded-2xl shadow-2xl transform animate-bounce">
+            <div className="flex items-center gap-3 mb-2">
+              <Trophy className="h-8 w-8 text-yellow-300 animate-pulse" />
+              <Sparkles className="h-6 w-6 text-yellow-200 animate-spin" />
+              <Star className="h-7 w-7 text-yellow-300 animate-pulse" />
+            </div>
+            <div className="text-center">
+              <h3 className="text-2xl font-bold mb-2 animate-pulse">
+                {celebrationState.celebrationMessage}
+              </h3>
+              {celebrationState.completedTask && (
+                <p className="text-lg opacity-90 font-medium">
+                  "{celebrationState.completedTask.title}"
+                </p>
+              )}
+            </div>
+            <div className="flex justify-center gap-2 mt-3">
+              <div className="w-2 h-2 bg-yellow-300 rounded-full animate-ping"></div>
+              <div className="w-2 h-2 bg-yellow-300 rounded-full animate-ping" style={{animationDelay: '0.2s'}}></div>
+              <div className="w-2 h-2 bg-yellow-300 rounded-full animate-ping" style={{animationDelay: '0.4s'}}></div>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Projects Summary Section */}
       <ProjectsSummary />
 

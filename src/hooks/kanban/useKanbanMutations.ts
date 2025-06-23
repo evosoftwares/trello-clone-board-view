@@ -220,7 +220,10 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
   }, [tasks, setTasks, setError, logActivity]);
 
   const createTask = useCallback(async (taskData: Partial<Task>, columnId: string) => {
+    console.log('[CREATE TASK] Starting task creation:', { taskData, columnId, user: !!user });
+    
     if (!user) {
+      console.error('[CREATE TASK] User not authenticated');
       setError('Usuário não autenticado');
       return;
     }
