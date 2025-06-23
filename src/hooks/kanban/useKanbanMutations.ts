@@ -16,12 +16,12 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
   const { logActivity } = useActivityLogger();
   const { user } = useAuth();
   
-  // Função auxiliar para calcular novas posições - VERSÃO SIMPLIFICADA
+  // Função auxiliar para calcular novas posições baseado no índice real
   const calculateNewPositions = (
     allTasks: Task[],
     taskId: string,
     newColumnId: string,
-    newPosition: number
+    destinationIndex: number
   ) => {
     const taskToMove = allTasks.find(t => t.id === taskId);
     if (!taskToMove) return [];
@@ -32,7 +32,7 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
     console.log('[CALCULATE POSITIONS] Task to move:', {
       taskId,
       from: { columnId: oldColumnId, currentPosition: taskToMove.position },
-      to: { columnId: newColumnId, newPosition }
+      to: { columnId: newColumnId, destinationIndex }
     });
 
     if (oldColumnId === newColumnId) {
@@ -41,19 +41,27 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
         .filter(t => t.column_id === newColumnId)
         .sort((a, b) => a.position - b.position);
 
-      const taskIds = columnTasks.map(t => t.id);
-      const currentIndex = taskIds.indexOf(taskId);
-      if (currentIndex === -1) return [];
-      
-      taskIds.splice(currentIndex, 1);
-      const targetIndex = Math.min(Math.max(0, newPosition), taskIds.length);
-      taskIds.splice(targetIndex, 0, taskId);
+      console.log('[CALCULATE POSITIONS] Column tasks before reorder:', 
+        columnTasks.map(t => ({ id: t.id, position: t.position, title: t.title }))
+      );
 
-      taskIds.forEach((id, index) => {
-        const task = columnTasks.find(t => t.id === id);
-        if (task && task.position !== index) {
+      // Remover a tarefa que está sendo movida da lista ordenada
+      const tasksWithoutMoved = columnTasks.filter(t => t.id !== taskId);
+      
+      // Inserir a tarefa na nova posição (destinationIndex)
+      const reorderedTasks = [...tasksWithoutMoved];
+      const safeDestinationIndex = Math.min(Math.max(0, destinationIndex), reorderedTasks.length);
+      reorderedTasks.splice(safeDestinationIndex, 0, taskToMove);
+
+      console.log('[CALCULATE POSITIONS] Column tasks after reorder:', 
+        reorderedTasks.map((t, idx) => ({ id: t.id, newPosition: idx, title: t.title }))
+      );
+
+      // Atualizar posições para todas as tarefas que mudaram
+      reorderedTasks.forEach((task, index) => {
+        if (task.position !== index) {
           updates.push({
-            id: id,
+            id: task.id,
             column_id: newColumnId,
             position: index
           });
@@ -63,10 +71,14 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
     } else {
       // MOVIMENTO ENTRE COLUNAS DIFERENTES
       
-      // 1. Reorganizar coluna de origem
+      // 1. Reorganizar coluna de origem (remover tarefa movida)
       const oldColumnTasks = allTasks
         .filter(t => t.column_id === oldColumnId && t.id !== taskId)
         .sort((a, b) => a.position - b.position);
+
+      console.log('[CALCULATE POSITIONS] Old column tasks after removal:', 
+        oldColumnTasks.map(t => ({ id: t.id, position: t.position, title: t.title }))
+      );
 
       oldColumnTasks.forEach((task, index) => {
         if (task.position !== index) {
@@ -78,24 +90,35 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
         }
       });
 
-      //  2. Reorganizar coluna de destino
+      // 2. Reorganizar coluna de destino (inserir tarefa)
       const newColumnTasks = allTasks
         .filter(t => t.column_id === newColumnId)
         .sort((a, b) => a.position - b.position);
 
-      const newColumnTaskIds = newColumnTasks.map(t => t.id);
-      const insertPosition = Math.min(Math.max(0, newPosition), newColumnTaskIds.length);
-      newColumnTaskIds.splice(insertPosition, 0, taskId);
+      console.log('[CALCULATE POSITIONS] New column tasks before insertion:', 
+        newColumnTasks.map(t => ({ id: t.id, position: t.position, title: t.title }))
+      );
 
-      newColumnTaskIds.forEach((id, index) => {
+      // Inserir tarefa na posição desejada
+      const safeDestinationIndex = Math.min(Math.max(0, destinationIndex), newColumnTasks.length);
+      const reorderedNewColumnTasks = [...newColumnTasks];
+      reorderedNewColumnTasks.splice(safeDestinationIndex, 0, taskToMove);
+
+      console.log('[CALCULATE POSITIONS] New column tasks after insertion:', 
+        reorderedNewColumnTasks.map((t, idx) => ({ id: t.id, newPosition: idx, title: t.title }))
+      );
+
+      // Atualizar posições para todas as tarefas da coluna de destino
+      reorderedNewColumnTasks.forEach((task, index) => {
         updates.push({
-          id: id,
+          id: task.id,
           column_id: newColumnId,
           position: index
         });
       });
     }
 
+    console.log('[CALCULATE POSITIONS] Final updates:', updates);
     return updates;
   };
 
@@ -119,8 +142,8 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
     return updatedTasks;
   };
 
-  const moveTask = useCallback(async (taskId: string, sourceColumnId: string, newColumnId: string) => {
-    console.log('[MOVE TASK] Starting move:', { taskId, from: sourceColumnId, to: newColumnId });
+  const moveTask = useCallback(async (taskId: string, sourceColumnId: string, newColumnId: string, destinationIndex?: number) => {
+    console.log('[MOVE TASK] Starting move:', { taskId, from: sourceColumnId, to: newColumnId, destinationIndex });
 
     const taskToMove = tasks.find(t => t.id === taskId);
     if (!taskToMove) {
@@ -128,11 +151,13 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
       return;
     }
 
-    // Calcular nova posição (último na coluna de destino)
-    const newPosition = Math.max(
+    // Usar destinationIndex se fornecido, senão última posição na coluna
+    const newPosition = destinationIndex !== undefined ? destinationIndex : Math.max(
       ...tasks.filter(t => t.column_id === newColumnId).map(t => t.position),
       -1
     ) + 1;
+
+    console.log('[MOVE TASK] Calculated position:', { destinationIndex, newPosition });
 
     const updates = calculateNewPositions(tasks, taskId, newColumnId, newPosition);
     if (updates.length === 0) {

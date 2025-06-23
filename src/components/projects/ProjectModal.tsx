@@ -6,6 +6,7 @@ import * as z from 'zod';
 import { Plus, Edit, Trash2, Save, X } from 'lucide-react';
 import { useProjectData } from '@/hooks/useProjectData';
 import { useToast } from '@/hooks/use-toast';
+import { useSecurityCheck } from '@/hooks/useSecurityCheck';
 import { Project } from '@/types/database';
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -15,6 +16,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { SecurityAlert } from '@/components/ui/security-alert';
 
 const projectFormSchema = z.object({
   name: z.string().min(1, 'Nome é obrigatório'),
@@ -47,6 +49,14 @@ const PROJECT_STATUS_OPTIONS = [
 export const ProjectModal: React.FC<ProjectModalProps> = ({ isOpen, onClose }) => {
   const { projects, createProject, updateProject, deleteProject } = useProjectData();
   const { toast } = useToast();
+  const { 
+    isSecurityAlertOpen, 
+    showSecurityAlert, 
+    hideSecurityAlert, 
+    confirmedCallback,
+    securityTitle,
+    securityDescription
+  } = useSecurityCheck();
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
 
@@ -91,48 +101,66 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ isOpen, onClose }) =
   }, [editingProject, form]);
 
   const onSubmit = async (values: z.infer<typeof projectFormSchema>) => {
-    try {
-      const projectData = {
-        name: values.name,
-        description: values.description,
-        client_name: values.client_name,
-        status: values.status,
-        color: values.color,
-        start_date: values.start_date,
-        deadline: values.deadline,
-        budget: values.budget,
-      };
+    const projectData = {
+      name: values.name,
+      description: values.description,
+      client_name: values.client_name,
+      status: values.status,
+      color: values.color,
+      start_date: values.start_date,
+      deadline: values.deadline,
+      budget: values.budget,
+    };
 
-      if (editingProject) {
-        await updateProject(editingProject.id, projectData);
-        toast({ title: 'Projeto atualizado com sucesso!' });
-      } else {
-        await createProject(projectData);
-        toast({ title: 'Projeto criado com sucesso!' });
+    const performOperation = async () => {
+      try {
+        if (editingProject) {
+          await updateProject(editingProject.id, projectData);
+          toast({ title: 'Projeto atualizado com sucesso!' });
+        } else {
+          await createProject(projectData);
+          toast({ title: 'Projeto criado com sucesso!' });
+        }
+        
+        setIsFormOpen(false);
+        setEditingProject(null);
+      } catch (error) {
+        toast({ 
+          title: 'Erro', 
+          description: 'Falha ao salvar o projeto.', 
+          variant: 'destructive' 
+        });
       }
-      
-      setIsFormOpen(false);
-      setEditingProject(null);
-    } catch (error) {
-      toast({ 
-        title: 'Erro', 
-        description: 'Falha ao salvar o projeto.', 
-        variant: 'destructive' 
-      });
-    }
+    };
+
+    showSecurityAlert(
+      performOperation,
+      editingProject ? 'Confirmar Edição' : 'Confirmar Criação',
+      editingProject 
+        ? 'Digite a senha para confirmar a edição do projeto:' 
+        : 'Digite a senha para confirmar a criação do projeto:'
+    );
   };
 
   const handleDelete = async (projectId: string) => {
-    try {
-      await deleteProject(projectId);
-      toast({ title: 'Projeto deletado com sucesso!' });
-    } catch (error) {
-      toast({ 
-        title: 'Erro', 
-        description: 'Falha ao deletar o projeto.', 
-        variant: 'destructive' 
-      });
-    }
+    const performDelete = async () => {
+      try {
+        await deleteProject(projectId);
+        toast({ title: 'Projeto deletado com sucesso!' });
+      } catch (error) {
+        toast({ 
+          title: 'Erro', 
+          description: 'Falha ao deletar o projeto.', 
+          variant: 'destructive' 
+        });
+      }
+    };
+
+    showSecurityAlert(
+      performDelete,
+      'Confirmar Exclusão',
+      'Digite a senha para confirmar a exclusão do projeto:'
+    );
   };
 
   const handleEdit = (project: Project) => {
@@ -324,27 +352,13 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ isOpen, onClose }) =
                     >
                       <Edit className="w-4 h-4" />
                     </Button>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="outline" size="sm">
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Esta ação não pode ser desfeita. O projeto será permanentemente deletado.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => handleDelete(project.id)}>
-                            Deletar
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => handleDelete(project.id)}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -352,6 +366,14 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ isOpen, onClose }) =
           </div>
         )}
       </DialogContent>
+      
+      <SecurityAlert
+        open={isSecurityAlertOpen}
+        onOpenChange={hideSecurityAlert}
+        onConfirm={confirmedCallback || (() => {})}
+        title={securityTitle}
+        description={securityDescription}
+      />
     </Dialog>
   );
 };

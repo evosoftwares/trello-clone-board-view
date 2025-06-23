@@ -5,6 +5,7 @@ import * as z from 'zod';
 import { Trash, User, Clock, Target, Save, Tag, MessageCircle } from 'lucide-react';
 
 import { useToast } from '@/hooks/use-toast';
+import { useSecurityCheck } from '@/hooks/useSecurityCheck';
 import { Task, TeamMember, Project, Tag as TagType, TaskTag } from '@/types/database';
 import { TagSelector } from '@/components/tags/TagSelector';
 import { TaskComments } from '@/components/comments/TaskComments';
@@ -18,6 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { SecurityAlert } from '@/components/ui/security-alert';
 
 const taskFormSchema = z.object({
   title: z.string().min(1, 'Título é obrigatório.'),
@@ -58,6 +60,14 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   refreshData
 }) => {
   const { toast } = useToast();
+  const { 
+    isSecurityAlertOpen, 
+    showSecurityAlert, 
+    hideSecurityAlert, 
+    confirmedCallback,
+    securityTitle,
+    securityDescription
+  } = useSecurityCheck();
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   
@@ -147,74 +157,93 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   };
 
   const onSubmit = async (values: z.infer<typeof taskFormSchema>) => {
-    setIsSaving(true);
-    try {
-      console.log('[TASK MODAL] Form values:', values);
-      
-      const taskData: Partial<Task> = {
-        title: values.title.trim(),
-        description: values.description?.trim() || null,
-        assignee: values.assignee === UNASSIGNED_VALUE ? null : values.assignee,
-        function_points: values.function_points || 0,
-        complexity: values.complexity,
-        project_id: values.project_id || null,
-      };
-      
-      if (isCreating) {
-        if (!createTask) {
-          throw new Error('createTask function is not provided');
+    const taskData: Partial<Task> = {
+      title: values.title.trim(),
+      description: values.description?.trim() || null,
+      assignee: values.assignee === UNASSIGNED_VALUE ? null : values.assignee,
+      function_points: values.function_points || 0,
+      complexity: values.complexity,
+      project_id: values.project_id || null,
+    };
+
+    const performOperation = async () => {
+      setIsSaving(true);
+      try {
+        console.log('[TASK MODAL] Form values:', values);
+        
+        if (isCreating) {
+          if (!createTask) {
+            throw new Error('createTask function is not provided');
+          }
+          await createTask(taskData);
+          toast({ 
+            title: 'Sucesso! ✨', 
+            description: 'Tarefa criada com sucesso.',
+            className: 'bg-blue-50 border-blue-200 text-blue-900'
+          });
+        } else {
+          if (!updateTask || !task) {
+            throw new Error('updateTask function or task is not provided');
+          }
+          await updateTask(task.id, taskData);
+          toast({ 
+            title: 'Sucesso! ✨', 
+            description: 'Tarefa atualizada com sucesso.',
+            className: 'bg-blue-50 border-blue-200 text-blue-900'
+          });
         }
-        await createTask(taskData);
+        onClose();
+      } catch (error) {
+        console.error(`[TASK MODAL] ${isCreating ? 'Create' : 'Update'} error:`, error);
         toast({ 
-          title: 'Sucesso! ✨', 
-          description: 'Tarefa criada com sucesso.',
-          className: 'bg-blue-50 border-blue-200 text-blue-900'
+          title: 'Erro', 
+          description: `Falha ao ${isCreating ? 'criar' : 'atualizar'} a tarefa.`, 
+          variant: 'destructive' 
         });
-      } else {
-        if (!updateTask || !task) {
-          throw new Error('updateTask function or task is not provided');
-        }
-        await updateTask(task.id, taskData);
-        toast({ 
-          title: 'Sucesso! ✨', 
-          description: 'Tarefa atualizada com sucesso.',
-          className: 'bg-blue-50 border-blue-200 text-blue-900'
-        });
+      } finally {
+        setIsSaving(false);
       }
-      onClose();
-    } catch (error) {
-      console.error(`[TASK MODAL] ${isCreating ? 'Create' : 'Update'} error:`, error);
-      toast({ 
-        title: 'Erro', 
-        description: `Falha ao ${isCreating ? 'criar' : 'atualizar'} a tarefa.`, 
-        variant: 'destructive' 
-      });
-    } finally {
-      setIsSaving(false);
-    }
+    };
+
+    showSecurityAlert(
+      performOperation,
+      isCreating ? 'Confirmar Criação' : 'Confirmar Edição',
+      isCreating 
+        ? 'Digite a senha para confirmar a criação da tarefa:' 
+        : 'Digite a senha para confirmar a edição da tarefa:'
+    );
   };
 
   const handleDelete = async () => {
     if (isCreating || !task) return;
-    setIsDeleting(true);
-    try {
-      await deleteTask(task.id);
-      toast({ 
-        title: 'Tarefa removida', 
-        description: 'A tarefa foi deletada com sucesso.',
-        className: 'bg-red-50 border-red-200 text-red-900'
-      });
-      onClose();
-    } catch (error) {
-      console.error('[TASK MODAL] Delete error:', error);
-      toast({ 
-        title: 'Erro', 
-        description: 'Falha ao deletar a tarefa.', 
-        variant: 'destructive' 
-      });
-    } finally {
-      setIsDeleting(false);
-    }
+
+    const performDelete = async () => {
+      setIsDeleting(true);
+      try {
+        await deleteTask(task.id);
+        toast({ 
+          title: 'Tarefa removida', 
+          description: 'A tarefa foi deletada com sucesso.',
+          className: 'bg-red-50 border-red-200 text-red-900'
+        });
+        onClose();
+      } catch (error) {
+        console.error('[TASK MODAL] Delete error:', error);
+        toast({ 
+          title: 'Erro', 
+          description: 'Falha ao deletar a tarefa.', 
+          variant: 'destructive' 
+        });
+      } finally {
+        setIsDeleting(false);
+      }
+    };
+
+    showSecurityAlert(
+      performDelete,
+      'Confirmar Exclusão',
+      'Digite a senha para confirmar a exclusão da tarefa:'
+    );
   };
 
   const complexityConfig = getComplexityConfig(form.watch('complexity'));
@@ -504,27 +533,14 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
           <div className="w-full flex justify-between items-center">
             <div>
               {!isCreating && task && (
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button variant="destructive" type="button" disabled={isDeleting}>
-                      {isDeleting ? 'Deletando...' : <><Trash className="w-4 h-4 mr-2" /> Deletar</>}
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        Esta ação não pode ser desfeita. A tarefa será permanentemente deletada.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                      <AlertDialogAction onClick={handleDelete}>
-                        Confirmar Deleção
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
+                <Button 
+                  variant="destructive" 
+                  type="button" 
+                  disabled={isDeleting}
+                  onClick={handleDelete}
+                >
+                  {isDeleting ? 'Deletando...' : <><Trash className="w-4 h-4 mr-2" /> Deletar</>}
+                </Button>
               )}
             </div>
             <div className="flex gap-2">
@@ -543,6 +559,14 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
           </div>
         </DialogFooter>
       </DialogContent>
+      
+      <SecurityAlert
+        open={isSecurityAlertOpen}
+        onOpenChange={hideSecurityAlert}
+        onConfirm={confirmedCallback || (() => {})}
+        title={securityTitle}
+        description={securityDescription}
+      />
     </Dialog>
   );
 };

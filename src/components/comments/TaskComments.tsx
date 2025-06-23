@@ -85,6 +85,7 @@ export const TaskComments: React.FC<TaskCommentsProps> = ({ taskId, allProfiles 
     setNewComment('');
   };
 
+
   const filteredProfiles = allProfiles.filter(profile =>
     profile.name.toLowerCase().includes(mentionSearch.toLowerCase())
   ).slice(0, 5);

@@ -2,11 +2,13 @@
 import React, { useState, useMemo } from 'react';
 import { Tag as TagType, TaskTag } from '@/types/database';
 import { TagItem } from './TagItem';
+import { useSecurityCheck } from '@/hooks/useSecurityCheck';
 import { Plus, Search, Tag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { SecurityAlert } from '@/components/ui/security-alert';
 
 interface TagSelectorProps {
   taskId: string;
@@ -31,6 +33,14 @@ export const TagSelector: React.FC<TagSelectorProps> = ({
   onDeleteTag,
   trigger
 }) => {
+  const { 
+    isSecurityAlertOpen, 
+    showSecurityAlert, 
+    hideSecurityAlert, 
+    confirmedCallback,
+    securityTitle,
+    securityDescription
+  } = useSecurityCheck();
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -86,20 +96,28 @@ export const TagSelector: React.FC<TagSelectorProps> = ({
       return;
     }
 
-    console.log('[TAG SELECTOR] Creating tag:', { name: newTagName.trim(), color: newTagColor });
-    setIsCreating(true);
-    
-    try {
-      await onCreateTag(newTagName.trim(), newTagColor);
-      console.log('[TAG SELECTOR] Tag created successfully');
-      setNewTagName('');
-      setNewTagColor('#3B82F6');
-      setShowCreateForm(false);
-    } catch (error) {
-      console.error('[TAG SELECTOR] Failed to create tag:', error);
-    } finally {
-      setIsCreating(false);
-    }
+    const performCreate = async () => {
+      console.log('[TAG SELECTOR] Creating tag:', { name: newTagName.trim(), color: newTagColor });
+      setIsCreating(true);
+      
+      try {
+        await onCreateTag(newTagName.trim(), newTagColor);
+        console.log('[TAG SELECTOR] Tag created successfully');
+        setNewTagName('');
+        setNewTagColor('#3B82F6');
+        setShowCreateForm(false);
+      } catch (error) {
+        console.error('[TAG SELECTOR] Failed to create tag:', error);
+      } finally {
+        setIsCreating(false);
+      }
+    };
+
+    showSecurityAlert(
+      performCreate,
+      'Confirmar Criação',
+      'Digite a senha para confirmar a criação da etiqueta:'
+    );
   };
 
   const defaultTrigger = (
@@ -248,6 +266,14 @@ export const TagSelector: React.FC<TagSelectorProps> = ({
           )}
         </div>
       </PopoverContent>
+      
+      <SecurityAlert
+        open={isSecurityAlertOpen}
+        onOpenChange={hideSecurityAlert}
+        onConfirm={confirmedCallback || (() => {})}
+        title={securityTitle}
+        description={securityDescription}
+      />
     </Popover>
   );
 };

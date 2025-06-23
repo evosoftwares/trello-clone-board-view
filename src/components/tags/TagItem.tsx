@@ -4,6 +4,8 @@ import { Tag as TagType } from '@/types/database';
 import { Edit, Trash2, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useSecurityCheck } from '@/hooks/useSecurityCheck';
+import { SecurityAlert } from '@/components/ui/security-alert';
 
 interface TagItemProps {
   tag: TagType;
@@ -22,21 +24,49 @@ export const TagItem: React.FC<TagItemProps> = ({
   onToggle,
   showActions = false
 }) => {
+  const { 
+    isSecurityAlertOpen, 
+    showSecurityAlert, 
+    hideSecurityAlert, 
+    confirmedCallback,
+    securityTitle,
+    securityDescription
+  } = useSecurityCheck();
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(tag.name);
   const [editColor, setEditColor] = useState(tag.color);
 
   const handleSave = async () => {
-    if (editName.trim()) {
+    if (!editName.trim()) return;
+
+    const performUpdate = async () => {
       await onUpdate(tag.id, editName.trim(), editColor);
       setIsEditing(false);
-    }
+    };
+
+    showSecurityAlert(
+      performUpdate,
+      'Confirmar Edição',
+      'Digite a senha para confirmar a edição da etiqueta:'
+    );
   };
 
   const handleCancel = () => {
     setEditName(tag.name);
     setEditColor(tag.color);
     setIsEditing(false);
+  };
+
+  const handleDelete = () => {
+    const performDelete = async () => {
+      await onDelete(tag.id);
+    };
+
+    showSecurityAlert(
+      performDelete,
+      'Confirmar Exclusão',
+      'Digite a senha para confirmar a exclusão da etiqueta:'
+    );
   };
 
   const colors = [
@@ -121,7 +151,7 @@ export const TagItem: React.FC<TagItemProps> = ({
             className="h-6 w-6 p-0 text-gray-500 hover:text-red-600"
             onClick={(e) => {
               e.stopPropagation();
-              onDelete(tag.id);
+              handleDelete();
             }}
           >
             <Trash2 className="w-3 h-3" />
@@ -132,6 +162,14 @@ export const TagItem: React.FC<TagItemProps> = ({
       {isSelected && (
         <Check className="w-4 h-4 text-blue-600" />
       )}
+      
+      <SecurityAlert
+        open={isSecurityAlertOpen}
+        onOpenChange={hideSecurityAlert}
+        onConfirm={confirmedCallback || (() => {})}
+        title={securityTitle}
+        description={securityDescription}
+      />
     </div>
   );
 };

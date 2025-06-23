@@ -5,15 +5,25 @@ import { Plus } from 'lucide-react';
 import { useKanbanData } from '@/hooks/useKanbanData';
 import { useProjectData } from '@/hooks/useProjectData';
 import { useProjectContext } from '@/contexts/ProjectContext';
+import { useSecurityCheck } from '@/hooks/useSecurityCheck';
 import KanbanColumn from './KanbanColumn';
 import { TaskDetailModal } from './modals/TaskDetailModal';
 import TeamMember from './TeamMember';
 import { Task, Column } from '@/types/database';
 import ProjectsSummary from './ProjectsSummary';
+import { SecurityAlert } from '@/components/ui/security-alert';
 
 const KanbanBoard = () => {
   const { selectedProjectId } = useProjectContext();
   const { projects } = useProjectData();
+  const { 
+    isSecurityAlertOpen, 
+    showSecurityAlert, 
+    hideSecurityAlert, 
+    confirmedCallback,
+    securityTitle,
+    securityDescription
+  } = useSecurityCheck();
   const {
     columns,
     tasks,
@@ -62,7 +72,8 @@ const KanbanBoard = () => {
     moveTask(
       draggableId,
       source.droppableId,
-      destination.droppableId
+      destination.droppableId,
+      destination.index
     );
   };
 
@@ -71,12 +82,26 @@ const KanbanBoard = () => {
     setIsCreatingTask(true);
   };
 
+  const handleQuickAddTask = async (columnId: string, title: string) => {
+    console.log('[QUICK ADD TASK] Creating task:', { columnId, title });
+    await createTask({ title }, columnId);
+  };
+
   const handleCreateTask = async (taskData: Partial<Task>) => {
     if (!creatingTaskColumn) return;
-    console.log('[ADD TASK] Creating task:', { columnId: creatingTaskColumn, data: taskData });
-    await createTask(taskData, creatingTaskColumn);
-    setIsCreatingTask(false);
-    setCreatingTaskColumn(null);
+
+    const performCreate = async () => {
+      console.log('[ADD TASK] Creating task:', { columnId: creatingTaskColumn, data: taskData });
+      await createTask(taskData, creatingTaskColumn);
+      setIsCreatingTask(false);
+      setCreatingTaskColumn(null);
+    };
+
+    showSecurityAlert(
+      performCreate,
+      'Confirmar Criação',
+      'Digite a senha para confirmar a criação da tarefa:'
+    );
   };
 
   // Calcular estatísticas dos membros
@@ -146,7 +171,7 @@ const KanbanBoard = () => {
                 projects={projects}
                 profiles={profiles}
                 columns={columns}
-                onAddTask={handleAddTask}
+                onAddTask={handleQuickAddTask}
                 onTaskClick={setSelectedTask}
               />
             </div>
@@ -186,6 +211,15 @@ const KanbanBoard = () => {
           refreshData={refreshData}
         />
       )}
+
+      {/* Security Alert */}
+      <SecurityAlert
+        open={isSecurityAlertOpen}
+        onOpenChange={hideSecurityAlert}
+        onConfirm={confirmedCallback || (() => {})}
+        title={securityTitle}
+        description={securityDescription}
+      />
     </div>
   );
 };
