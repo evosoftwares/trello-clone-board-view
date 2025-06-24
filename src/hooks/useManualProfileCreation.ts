@@ -1,28 +1,31 @@
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Profile } from '@/types/auth';
+import { createLogger } from '@/utils/logger';
+
+const logger = createLogger('PROFILE CREATION');
 
 export const useManualProfileCreation = () => {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const creatingRef = useRef<Set<string>>(new Set());
 
-  const createProfileIfNotExists = async (userId: string, name: string, email?: string, role = 'developer'): Promise<Profile | null> => {
+  const createProfileIfNotExists = useCallback(async (userId: string, name: string, email?: string, role = 'developer'): Promise<Profile | null> => {
     // Evitar chamadas duplicadas para o mesmo usuário
     if (creatingRef.current.has(userId)) {
-      console.log('[PROFILE CREATION] Already creating profile for user:', userId);
+      logger.debug('Already creating profile for user', userId);
       return null;
     }
 
     try {
       setLoading(true);
       creatingRef.current.add(userId);
-      console.log('[PROFILE CREATION] Starting for user:', { userId, name, email, role });
+      logger.info('Starting profile creation for user', { userId, name, email, role });
       
       // Verificar se perfil já existe
-      console.log('[PROFILE CREATION] Checking if profile exists...');
+      logger.debug('Checking if profile exists');
       const { data: profileData, error: checkError } = await supabase
         .from('profiles')
         .select('*')
@@ -30,17 +33,17 @@ export const useManualProfileCreation = () => {
         .maybeSingle();
 
       if (checkError && checkError.code !== 'PGRST116') {
-        console.error('[PROFILE CREATION] Error checking existing profile:', checkError);
+        logger.error('Error checking existing profile', checkError);
         throw checkError;
       }
 
       if (profileData) {
-        console.log('[PROFILE CREATION] Profile already exists:', profileData);
+        logger.debug('Profile already exists', profileData);
         return profileData as Profile;
       }
 
       // Criar novo perfil
-      console.log('[PROFILE CREATION] Creating new profile...');
+      logger.debug('Creating new profile');
       const newProfileData = {
         id: userId,
         name: name,
@@ -49,7 +52,7 @@ export const useManualProfileCreation = () => {
         is_active: true
       };
 
-      console.log('[PROFILE CREATION] Profile data to insert:', newProfileData);
+      logger.debug('Profile data to insert', newProfileData);
 
       const { data: newProfile, error: insertError } = await supabase
         .from('profiles')
@@ -58,11 +61,11 @@ export const useManualProfileCreation = () => {
         .single();
 
       if (insertError) {
-        console.error('[PROFILE CREATION] Insert error:', insertError);
+        logger.error('Insert error', insertError);
         
         // Se o erro for de duplicata, tentar buscar o perfil novamente
         if (insertError.code === '23505') {
-          console.log('[PROFILE CREATION] Duplicate key error, fetching existing profile...');
+          logger.debug('Duplicate key error, fetching existing profile');
           const { data: existingAfterError } = await supabase
             .from('profiles')
             .select('*')
@@ -77,7 +80,7 @@ export const useManualProfileCreation = () => {
         throw new Error(`Erro ao criar perfil: ${insertError.message}`);
       }
 
-      console.log('[PROFILE CREATION] Profile created successfully:', newProfile);
+      logger.info('Profile created successfully', newProfile);
       
       toast({
         title: "Perfil criado",
@@ -87,7 +90,7 @@ export const useManualProfileCreation = () => {
       return newProfile as Profile;
 
     } catch (err: any) {
-      console.error('[PROFILE CREATION] Error creating profile:', err);
+      logger.error('Error creating profile', err);
       
       // Mensagens de erro mais claras
       let errorMessage = 'Erro desconhecido ao criar perfil';
@@ -114,24 +117,24 @@ export const useManualProfileCreation = () => {
       creatingRef.current.delete(userId);
       setLoading(false);
     }
-  };
+  }, [toast]);
 
-  const ensureProfileExists = async (user: any): Promise<Profile | null> => {
+  const ensureProfileExists = useCallback(async (user: any): Promise<Profile | null> => {
     if (!user) {
-      console.log('[PROFILE CREATION] No user provided');
+      logger.debug('No user provided');
       return null;
     }
 
-    console.log('[PROFILE CREATION] Ensuring profile exists for user:', user.id);
+    logger.debug('Ensuring profile exists for user', user.id);
     
     try {
       const name = user.user_metadata?.name || user.email?.split('@')[0] || 'Usuário';
       return await createProfileIfNotExists(user.id, name, user.email);
     } catch (err: any) {
-      console.error('[PROFILE CREATION] Error in ensureProfileExists:', err);
+      logger.error('Error in ensureProfileExists', err);
       return null;
     }
-  };
+  }, [createProfileIfNotExists]);
 
   return {
     createProfileIfNotExists,

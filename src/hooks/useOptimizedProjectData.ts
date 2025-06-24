@@ -3,9 +3,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Project } from '@/types/database';
 import { QUERY_KEYS, invalidateRelatedQueries } from '@/lib/queryClient';
+import { createLogger } from '@/utils/logger';
+
+const logger = createLogger('useOptimizedProjectData');
 
 const fetchProjects = async (): Promise<Project[]> => {
-  console.debug('[OPTIMIZED PROJECT DATA] Fetching projects...');
+  logger.debug('Fetching projects...');
   
   const { data, error } = await supabase
     .from("projects")
@@ -13,11 +16,11 @@ const fetchProjects = async (): Promise<Project[]> => {
     .order("created_at", { ascending: false });
 
   if (error) {
-    console.error('[OPTIMIZED PROJECT DATA] Error fetching projects:', error);
+    logger.error('Error fetching projects', error);
     throw error;
   }
 
-  console.debug('[OPTIMIZED PROJECT DATA] Projects fetched successfully:', data?.length);
+  logger.debug('Projects fetched successfully', data?.length);
   return data as Project[];
 };
 
@@ -79,7 +82,7 @@ export const useOptimizedProjectData = () => {
       ]);
     },
     onError: (error) => {
-      console.error('[CREATE PROJECT] Error:', error);
+      logger.error('Create project error', error);
       // Refetch on error to sync with server
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.projects });
     }
@@ -110,7 +113,7 @@ export const useOptimizedProjectData = () => {
       invalidateRelatedQueries(queryClient, 'project', updatedProject.id);
     },
     onError: (error) => {
-      console.error('[UPDATE PROJECT] Error:', error);
+      logger.error('Update project error', error);
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.projects });
     }
   });
@@ -136,7 +139,7 @@ export const useOptimizedProjectData = () => {
       invalidateRelatedQueries(queryClient, 'project', deletedId);
     },
     onError: (error) => {
-      console.error('[DELETE PROJECT] Error:', error);
+      logger.error('Delete project error', error);
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.projects });
     }
   });

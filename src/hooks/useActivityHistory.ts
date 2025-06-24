@@ -3,6 +3,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { ActivityLog } from '@/types/database';
+import { createLogger } from '@/utils/logger';
+
+const logger = createLogger('useActivityHistory');
 
 export const useActivityHistory = (entityType?: string, entityId?: string) => {
   const [filterType, setFilterType] = useState<string>('all');
@@ -56,7 +59,7 @@ export const useActivityHistory = (entityType?: string, entityId?: string) => {
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'activity_log' }, 
         (payload) => {
-          console.log('Activity log change:', payload);
+          logger.info('Activity log change', payload);
           // Invalidar e refetch os dados
           queryClient.invalidateQueries({ queryKey: ['activity_log'] });
         }

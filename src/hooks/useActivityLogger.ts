@@ -1,6 +1,9 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { createLogger } from '@/utils/logger';
+
+const logger = createLogger('useActivityLogger');
 
 export const useActivityLogger = () => {
   const { user } = useAuth();
@@ -16,7 +19,7 @@ export const useActivityLogger = () => {
     if (!user) return;
 
     try {
-      console.log('[ACTIVITY LOGGER] Creating log:', {
+      logger.info('Creating activity log', {
         entityType,
         entityId,
         actionType,
@@ -36,12 +39,12 @@ export const useActivityLogger = () => {
       });
 
       if (error) {
-        console.error('[ACTIVITY LOGGER] Error:', error);
+        logger.error('Error creating activity log', error);
       } else {
-        console.log('[ACTIVITY LOGGER] Log created successfully');
+        logger.info('Activity log created successfully');
       }
     } catch (err) {
-      console.error('[ACTIVITY LOGGER] Exception:', err);
+      logger.error('Exception in activity logger', err);
     }
   };
 

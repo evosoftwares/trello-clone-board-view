@@ -10,7 +10,15 @@
       "Bash(git restore:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(npm run dev:*)"
+      "Bash(npm run dev:*)",
+      "Bash(git push:*)",
+      "Bash(npx eslint:*)",
+      "Bash(node:*)",
+      "Bash(rm:*)",
+      "Bash(rg:*)",
+      "Bash(for file in \"src/hooks/useRequestDeduplication.ts\" \"src/hooks/useIntelligentCacheInvalidation.ts\" \"src/hooks/kanban/useKanbanDataFetch.ts\" \"src/hooks/kanban/useOptimizedKanbanMutations.ts\" \"src/hooks/kanban/useBatchKanbanData.ts\")",
+      "Bash(do echo \"=== $file ===\")",
+      "Bash(done)"
     ],
     "deny": []
   }

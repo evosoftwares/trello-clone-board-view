@@ -1,6 +1,9 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useRef } from 'react';
 import { QUERY_KEYS } from '@/lib/queryClient';
+import { createLogger } from '@/utils/logger';
+
+const logger = createLogger('useIntelligentCacheInvalidation');
 
 interface InvalidationRule {
   trigger: string;
@@ -68,16 +71,16 @@ export const useIntelligentCacheInvalidation = () => {
     const rules = INVALIDATION_RULES.filter(rule => rule.trigger === trigger);
     
     if (rules.length === 0) {
-      console.warn(`[INTELLIGENT CACHE] No invalidation rules found for trigger: ${trigger}`);
+      logger.warn(`No invalidation rules found for trigger: ${trigger}`);
       return;
     }
 
-    console.log(`[INTELLIGENT CACHE] Processing ${rules.length} rules for trigger: ${trigger}`);
+    logger.info(`Processing ${rules.length} rules for trigger: ${trigger}`);
 
     for (const rule of rules) {
       // Check condition if present
       if (rule.condition && !rule.condition(data)) {
-        console.log(`[INTELLIGENT CACHE] Skipping rule due to condition: ${rule.trigger}`);
+        logger.info(`Skipping rule due to condition: ${rule.trigger}`);
         continue;
       }
 
@@ -86,7 +89,7 @@ export const useIntelligentCacheInvalidation = () => {
       const lastInvalidation = invalidationHistoryRef.current[ruleKey];
       
       if (lastInvalidation && (now - lastInvalidation) < 1000) { // 1 second cooldown
-        console.log(`[INTELLIGENT CACHE] Skipping duplicate invalidation: ${ruleKey}`);
+        logger.info(`Skipping duplicate invalidation: ${ruleKey}`);
         continue;
       }
 
@@ -120,16 +123,16 @@ export const useIntelligentCacheInvalidation = () => {
               queryKey: QUERY_KEYS.activityHistory() 
             });
           default:
-            console.warn(`[INTELLIGENT CACHE] Unknown cache type: ${cacheType}`);
+            logger.warn(`Unknown cache type: ${cacheType}`);
             return Promise.resolve();
         }
       });
 
       try {
         await Promise.allSettled(promises);
-        console.log(`[INTELLIGENT CACHE] Successfully invalidated caches for: ${rule.invalidate.join(', ')}`);
+        logger.info(`Successfully invalidated caches for: ${rule.invalidate.join(', ')}`);
       } catch (error) {
-        console.error(`[INTELLIGENT CACHE] Error invalidating caches:`, error);
+        logger.error('Error invalidating caches', error);
       }
     }
 
@@ -143,7 +146,7 @@ export const useIntelligentCacheInvalidation = () => {
   }, [queryClient]);
 
   const invalidateAll = useCallback(async () => {
-    console.log('[INTELLIGENT CACHE] Invalidating all caches');
+    logger.info('Invalidating all caches');
     await queryClient.invalidateQueries();
     invalidationHistoryRef.current = {};
   }, [queryClient]);
@@ -175,7 +178,7 @@ export const useIntelligentCacheInvalidation = () => {
     const toPreload = preloadMap[trigger];
     if (!toPreload) return;
 
-    console.log(`[INTELLIGENT CACHE] Preloading data for trigger: ${trigger}`);
+    logger.info(`Preloading data for trigger: ${trigger}`);
 
     const promises = toPreload.map(cacheType => {
       switch (cacheType) {
@@ -194,9 +197,9 @@ export const useIntelligentCacheInvalidation = () => {
 
     try {
       await Promise.allSettled(promises);
-      console.log(`[INTELLIGENT CACHE] Preloaded: ${toPreload.join(', ')}`);
+      logger.info(`Preloaded: ${toPreload.join(', ')}`);
     } catch (error) {
-      console.error('[INTELLIGENT CACHE] Preload error:', error);
+      logger.error('Preload error', error);
     }
   }, [queryClient]);
 

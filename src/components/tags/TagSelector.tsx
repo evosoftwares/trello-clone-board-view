@@ -2,6 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { Tag as TagType, TaskTag } from '@/types/database';
 import { TagItem } from './TagItem';
+import { createLogger } from '@/utils/logger';
 import { useSecurityCheck } from '@/hooks/useSecurityCheck';
 import { Plus, Search, Tag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -21,6 +22,8 @@ interface TagSelectorProps {
   onDeleteTag: (tagId: string) => Promise<void>;
   trigger?: React.ReactNode;
 }
+
+const logger = createLogger('TagSelector');
 
 export const TagSelector: React.FC<TagSelectorProps> = ({
   taskId,
@@ -86,28 +89,28 @@ export const TagSelector: React.FC<TagSelectorProps> = ({
         localStorage.setItem('recentTags', JSON.stringify(updatedRecent));
       }
     } catch (error) {
-      console.error('Error toggling tag:', error);
+      logger.error('Error toggling tag', error);
     }
   };
 
   const handleCreateTag = async () => {
     if (!newTagName.trim()) {
-      console.warn('[TAG SELECTOR] Cannot create tag with empty name');
+      logger.warn('Cannot create tag with empty name');
       return;
     }
 
     const performCreate = async () => {
-      console.log('[TAG SELECTOR] Creating tag:', { name: newTagName.trim(), color: newTagColor });
+      logger.info('Creating tag', { name: newTagName.trim(), color: newTagColor });
       setIsCreating(true);
       
       try {
         await onCreateTag(newTagName.trim(), newTagColor);
-        console.log('[TAG SELECTOR] Tag created successfully');
+        logger.info('Tag created successfully');
         setNewTagName('');
         setNewTagColor('#3B82F6');
         setShowCreateForm(false);
       } catch (error) {
-        console.error('[TAG SELECTOR] Failed to create tag:', error);
+        logger.error('Failed to create tag', error);
       } finally {
         setIsCreating(false);
       }

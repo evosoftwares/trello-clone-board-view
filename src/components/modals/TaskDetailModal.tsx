@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import { createLogger } from '@/utils/logger';
 import { Trash, User, Clock, Target, Save, Tag, MessageCircle } from 'lucide-react';
 
 import { useToast } from '@/hooks/use-toast';
@@ -45,6 +46,7 @@ interface TaskDetailModalProps {
 }
 
 const UNASSIGNED_VALUE = 'unassigned-sentinel';
+const logger = createLogger('TaskDetailModal');
 
 export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ 
   task, 
@@ -95,7 +97,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
 
   useEffect(() => {
     if (task) {
-      console.log('[TASK MODAL] Task data:', task);
+      logger.info('Task data loaded', task);
       form.reset({
         title: task?.title || '',
         description: task?.description || '',
@@ -169,7 +171,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     const performOperation = async () => {
       setIsSaving(true);
       try {
-        console.log('[TASK MODAL] Form values:', values);
+        logger.info('Form values', values);
         
         if (isCreating) {
           if (!createTask) {
@@ -194,7 +196,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
         }
         onClose();
       } catch (error) {
-        console.error(`[TASK MODAL] ${isCreating ? 'Create' : 'Update'} error:`, error);
+        logger.error(`${isCreating ? 'Create' : 'Update'} error`, error);
         toast({ 
           title: 'Erro', 
           description: `Falha ao ${isCreating ? 'criar' : 'atualizar'} a tarefa.`, 
@@ -228,7 +230,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
         });
         onClose();
       } catch (error) {
-        console.error('[TASK MODAL] Delete error:', error);
+        logger.error('Delete error', error);
         toast({ 
           title: 'Erro', 
           description: 'Falha ao deletar a tarefa.', 

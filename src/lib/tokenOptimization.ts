@@ -1,4 +1,7 @@
 import { queryClient, QUERY_KEYS } from './queryClient';
+import { createLogger } from '@/utils/logger';
+
+const logger = createLogger('TokenOptimization');
 
 interface CacheMetrics {
   hitRate: number;
@@ -47,7 +50,7 @@ class TokenOptimizationManager {
 
     // Check if request is already pending
     if (this.pendingRequests.has(key)) {
-      console.log(`[TOKEN OPT] Deduplicating request: ${key}`);
+      logger.info(`Deduplicating request: ${key}`);
       this.metrics.hits++;
       return this.pendingRequests.get(key);
     }
@@ -97,7 +100,7 @@ class TokenOptimizationManager {
     const batch = [...this.batchQueue];
     this.batchQueue.length = 0;
 
-    console.log(`[TOKEN OPT] Processing batch of ${batch.length} requests`);
+    logger.info(`Processing batch of ${batch.length} requests`);
 
     // Group requests by type for efficient batching
     const groupedRequests = batch.reduce((groups, item) => {
@@ -112,7 +115,7 @@ class TokenOptimizationManager {
       try {
         await this.executeBatchedRequests(type, requests);
       } catch (error) {
-        console.error(`[TOKEN OPT] Batch error for type ${type}:`, error);
+        logger.error(`Batch error for type ${type}`, error);
         requests.forEach(req => req.resolver(null));
       }
     }
@@ -153,13 +156,13 @@ class TokenOptimizationManager {
   private async batchFetchKanbanData(projectIds: string[]) {
     // Implementation would fetch all project data in one query
     // This is a placeholder - actual implementation would use Supabase
-    console.log(`[TOKEN OPT] Batch fetching kanban data for projects:`, projectIds);
+    logger.info('Batch fetching kanban data for projects', projectIds);
     return projectIds.map(() => ({})); // Placeholder
   }
 
   private async batchFetchTasks(projectIds: string[]) {
     // Implementation would fetch all tasks for multiple projects in one query
-    console.log(`[TOKEN OPT] Batch fetching tasks for projects:`, projectIds);
+    logger.info('Batch fetching tasks for projects', projectIds);
     return projectIds.map(() => []); // Placeholder
   }
 
@@ -168,7 +171,7 @@ class TokenOptimizationManager {
     const cache = queryClient.getQueryCache();
     const queries = cache.getAll();
 
-    console.log(`[TOKEN OPT] Optimizing cache with ${queries.length} queries`);
+    logger.info(`Optimizing cache with ${queries.length} queries`);
 
     // Remove stale queries
     const now = Date.now();
@@ -197,7 +200,7 @@ class TokenOptimizationManager {
       });
     }
 
-    console.log(`[TOKEN OPT] Cache optimization complete. Removed ${removedCount} queries`);
+    logger.info(`Cache optimization complete. Removed ${removedCount} queries`);
   }
 
   // Metrics and monitoring

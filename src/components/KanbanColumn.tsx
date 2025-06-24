@@ -1,7 +1,8 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Droppable } from '@hello-pangea/dnd';
 import { Plus, ChevronDown, ChevronRight, FolderOpen, Folder } from 'lucide-react';
+import { createLogger } from '@/utils/logger';
 import TaskCard from './TaskCard';
 import { ProjectBadge } from './projects/ProjectBadge';
 import { KanbanColumn as KanbanColumnType, Task, Tag, TaskTag, Project, Profile } from '@/types/database';
@@ -17,6 +18,8 @@ interface KanbanColumnProps {
   onAddTask: (columnId: string, title: string) => void;
   onTaskClick: (task: Task) => void;
 }
+
+const logger = createLogger('KanbanColumn');
 
 const KanbanColumn: React.FC<KanbanColumnProps> = ({ 
   column, 
@@ -53,37 +56,58 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
                            column.title?.toLowerCase().includes('completed') ||
                            column.title?.toLowerCase().includes('done');
 
-  // Agrupar tarefas por projeto apenas se for coluna concluída
-  const groupedTasks = isCompletedColumn ? 
-    columnTasks.reduce((acc, task) => {
+  // Agrupar tarefas por projeto apenas se for coluna concluída (memoizado para estabilidade)
+  const groupedTasks = useMemo(() => {
+    if (!isCompletedColumn) return null;
+    
+    return columnTasks.reduce((acc, task) => {
       const projectId = task.project_id || 'sem-projeto';
       if (!acc[projectId]) {
         acc[projectId] = [];
       }
       acc[projectId].push(task);
       return acc;
-    }, {} as Record<string, Task[]>) : 
-    null;
+    }, {} as Record<string, Task[]>);
+  }, [isCompletedColumn, columnTasks]);
 
-  // Initialize collapsed state for completed columns
-  useEffect(() => {
-    if (isCompletedColumn && groupedTasks) {
-      const projectIds = Object.keys(groupedTasks);
-      setCollapsedProjects(new Set(projectIds));
-    }
-  }, [isCompletedColumn, groupedTasks]);
+  // Criar array de tasks visíveis para colunas concluídas (memoizado)
+  const visibleTasks = useMemo(() => {
+    if (!isCompletedColumn || !groupedTasks) return columnTasks;
+    
+    const visible: Task[] = [];
+    Object.keys(groupedTasks).forEach(projectId => {
+      const isCollapsed = !collapsedProjects.has(`open-${projectId}`);
+      if (!isCollapsed) {
+        visible.push(...groupedTasks[projectId]);
+      }
+    });
+    return visible;
+  }, [isCompletedColumn, groupedTasks, collapsedProjects, columnTasks]);
 
-  const toggleProjectCollapse = (projectId: string) => {
-    const newCollapsed = new Set(collapsedProjects);
-    if (newCollapsed.has(projectId)) {
-      newCollapsed.delete(projectId);
-    } else {
-      newCollapsed.add(projectId);
-    }
-    setCollapsedProjects(newCollapsed);
-  };
 
-  console.log(`[COLUMN ${column.title}] Tasks:`, columnTasks.map(t => ({ id: t.id, title: t.title, position: t.position })));
+  const toggleProjectCollapse = useCallback((projectId: string) => {
+    const openKey = `open-${projectId}`;
+    
+    setCollapsedProjects(prev => {
+      const wasCollapsed = !prev.has(openKey);
+      const newCollapsed = new Set(prev);
+      
+      if (wasCollapsed) {
+        // Opening the folder
+        newCollapsed.add(openKey);
+      } else {
+        // Closing the folder
+        newCollapsed.delete(openKey);
+      }
+      
+      logger.info(`Toggling project ${projectId} in column ${column.title}`, { 
+        wasCollapsed,
+        nowCollapsed: !wasCollapsed
+      });
+      
+      return newCollapsed;
+    });
+  }, [column.title]);
 
   const handleAddTask = () => {
     if (newTaskTitle.trim()) {
@@ -140,16 +164,22 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
             {/* Tasks - Organizados por projeto se for coluna concluída */}
             {isCompletedColumn && groupedTasks ? (
               <>
+                {/* Render project headers and tasks */}
                 {Object.entries(groupedTasks).map(([projectId, projectTasks]) => {
                   const project = projects.find(p => p.id === projectId);
-                  const isCollapsed = collapsedProjects.has(projectId);
+                  // Default to collapsed if not explicitly opened
+                  const isCollapsed = !collapsedProjects.has(`open-${projectId}`);
                   
                   return (
-                    <div key={projectId} className="space-y-2">
-                      {/* Cabeçalho do projeto */}
+                    <div key={`project-${projectId}`}>
+                      {/* Project header */}
                       <div 
-                        className="flex items-center gap-2 p-2 bg-white rounded-lg border cursor-pointer hover:bg-gray-50 transition-colors"
-                        onClick={() => toggleProjectCollapse(projectId)}
+                        className="flex items-center gap-2 p-2 bg-white rounded-lg border cursor-pointer hover:bg-gray-50 transition-colors mb-2"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          toggleProjectCollapse(projectId);
+                        }}
                       >
                         {isCollapsed ? (
                           <ChevronRight className="w-4 h-4 text-gray-400" />
@@ -177,22 +207,26 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
                         </span>
                       </div>
                       
-                      {/* Tarefas do projeto */}
+                      {/* Tasks do projeto - somente se não estiver colapsado */}
                       {!isCollapsed && (
-                        <div className="ml-4 space-y-2">
-                          {projectTasks.map((task, index) => (
-                            <TaskCard 
-                              key={task.id}
-                              task={task}
-                              index={index}
-                              tags={tags}
-                              taskTags={taskTags}
-                              projects={projects}
-                              columns={columns}
-                              onClick={() => onTaskClick(task)}
-                              teamMembers={profiles}
-                            />
-                          ))}
+                        <div className="ml-4 space-y-2 lg:space-y-3 xl:space-y-4 mb-4">
+                          {projectTasks.map((task) => {
+                            // Encontrar o índice visual correto da task no array de tasks visíveis
+                            const visualIndex = visibleTasks.findIndex(t => t.id === task.id);
+                            return (
+                              <TaskCard 
+                                key={task.id}
+                                task={task}
+                                index={visualIndex >= 0 ? visualIndex : 0}
+                                tags={tags}
+                                taskTags={taskTags}
+                                projects={projects}
+                                columns={columns}
+                                onClick={() => onTaskClick(task)}
+                                teamMembers={profiles}
+                              />
+                            );
+                          })}
                         </div>
                       )}
                     </div>

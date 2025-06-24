@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { DragDropContext, DropResult } from '@hello-pangea/dnd';
 import { Trophy, Star, Sparkles } from 'lucide-react';
 import Confetti from 'react-confetti';
+import { createLogger } from '@/utils/logger';
 import { useKanbanData } from '@/hooks/useKanbanData';
 import { useProjectData } from '@/hooks/useProjectData';
 import { useProjectContext } from '@/contexts/ProjectContext';
@@ -13,6 +14,8 @@ import TeamMember from './TeamMember';
 import { Task, Column } from '@/types/database';
 import ProjectsSummary from './ProjectsSummary';
 import { SecurityAlert } from '@/components/ui/security-alert';
+
+const logger = createLogger('KanbanBoard');
 
 const KanbanBoard = () => {
   const { selectedProjectId } = useProjectContext();
@@ -45,8 +48,8 @@ const KanbanBoard = () => {
   const [creatingTaskColumn, setCreatingTaskColumn] = useState<Column['id'] | null>(null);
   const [celebrationState, setCelebrationState] = useState({
     showConfetti: false,
-    showSecondWave: false,
     showCelebrationMessage: false,
+    isMessageExiting: false,
     completedTask: null as Task | null,
     celebrationMessage: ""
   });
@@ -67,7 +70,7 @@ const KanbanBoard = () => {
 
     // Bloquear movimento se a origem for "Concluído"
     if (isSourceCompleted) {
-      console.log('[DRAG BLOCKED] Cannot move completed tasks');
+      logger.info('Drag blocked: Cannot move completed tasks');
       return;
     }
 
@@ -81,7 +84,7 @@ const KanbanBoard = () => {
                                 destinationColumn?.title?.toLowerCase().includes('completed') ||
                                 destinationColumn?.title?.toLowerCase().includes('done');
 
-    console.log('[DRAG END] Moving task:', {
+    logger.info('Moving task', {
       taskId: draggableId,
       from: { columnId: source.droppableId, index: source.index },
       to: { columnId: destination.droppableId, index: destination.index },
@@ -107,55 +110,49 @@ const KanbanBoard = () => {
     // Generate random message once
     const celebrationMessage = getCelebrationMessage(completedTask);
     
-    // Phase 1: Initial confetti burst
+    // Start single intense confetti animation
     setCelebrationState({
       showConfetti: true,
-      showSecondWave: false,
       showCelebrationMessage: true,
+      isMessageExiting: false,
       completedTask,
       celebrationMessage
     });
 
-    // Phase 2: Second wave of confetti after 1 second
+    // Start exit animation for message after 4.5 seconds
     setTimeout(() => {
       setCelebrationState(prev => ({
         ...prev,
-        showSecondWave: true
+        isMessageExiting: true
       }));
-    }, 1000);
+    }, 4500);
 
-    // Phase 3: Third wave and cleanup after 3 seconds
+    // Completely hide celebration message after exit animation (5.1 seconds)
     setTimeout(() => {
       setCelebrationState(prev => ({
         ...prev,
-        showConfetti: false,
-        showSecondWave: false
+        showCelebrationMessage: false,
+        isMessageExiting: false
       }));
-    }, 4000);
+    }, 5100);
 
-    // Phase 4: Hide celebration message after 5 seconds
+    // Stop confetti and cleanup after 10 seconds (let all pieces fall)
     setTimeout(() => {
       setCelebrationState({
         showConfetti: false,
-        showSecondWave: false,
         showCelebrationMessage: false,
+        isMessageExiting: false,
         completedTask: null,
         celebrationMessage: ""
       });
-    }, 5000);
+    }, 10000);
   }, []);
 
   // Get random celebration messages
   const getCelebrationMessage = (task: Task | null) => {
     const messages = [
-      "🎉 Tarefa Concluída com Sucesso!",
-      "🏆 Parabéns! Mais uma vitória!",
-      "⭐ Excelente trabalho!",
-      "🚀 Missão Cumprida!",
-      "💪 Você é incrível!",
-      "🎯 Objetivo Alcançado!",
-      "✨ Fantástico! Continue assim!",
-      "🌟 Mais um passo rumo ao sucesso!"
+      "🎉O cara é o Vitinho",
+      "🔥 Vitinho é o cara!"
     ];
     
     const randomMessage = messages[Math.floor(Math.random() * messages.length)];
@@ -168,12 +165,12 @@ const KanbanBoard = () => {
   };
 
   const handleQuickAddTask = async (columnId: string, title: string) => {
-    console.log('[QUICK ADD TASK] Creating task:', { columnId, title });
+    logger.info('Creating quick task', { columnId, title });
     try {
       await createTask({ title }, columnId);
-      console.log('[QUICK ADD TASK] Task creation completed');
+      logger.info('Task creation completed');
     } catch (error) {
-      console.error('[QUICK ADD TASK] Task creation failed:', error);
+      logger.error('Task creation failed', error);
     }
   };
 
@@ -181,7 +178,7 @@ const KanbanBoard = () => {
     if (!creatingTaskColumn) return;
 
     const performCreate = async () => {
-      console.log('[ADD TASK] Creating task:', { columnId: creatingTaskColumn, data: taskData });
+      logger.info('Creating task', { columnId: creatingTaskColumn, data: taskData });
       await createTask(taskData, creatingTaskColumn);
       setIsCreatingTask(false);
       setCreatingTaskColumn(null);
@@ -224,60 +221,58 @@ const KanbanBoard = () => {
 
   return (
     <div className="w-full h-full flex flex-col space-y-4 lg:space-y-6">
-      {/* Epic Celebration Effects */}
+      {/* Epic Celebration Effects - Single Intense Confetti */}
       {celebrationState.showConfetti && (
-        <>
-          {/* Main confetti burst */}
-          <Confetti
-            width={window.innerWidth}
-            height={window.innerHeight}
-            recycle={false}
-            numberOfPieces={300}
-            gravity={0.25}
-            colors={['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#ffeaa7', '#dda0dd', '#98d8c8', '#f7dc6f']}
-            wind={0.05}
-          />
-          
-          {/* Second wave - different angle and colors */}
-          {celebrationState.showSecondWave && (
-            <Confetti
-              width={window.innerWidth}
-              height={window.innerHeight}
-              recycle={false}
-              numberOfPieces={150}
-              gravity={0.15}
-              colors={['#e74c3c', '#f39c12', '#27ae60', '#3498db', '#9b59b6', '#e67e22']}
-              initialVelocityX={-5}
-              initialVelocityY={-10}
-              wind={-0.05}
-            />
-          )}
-        </>
+        <Confetti
+          width={window.innerWidth}
+          height={window.innerHeight}
+          recycle={false}
+          numberOfPieces={800}
+          gravity={0.15}
+          colors={[
+            '#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#ffeaa7', '#dda0dd', 
+            '#98d8c8', '#f7dc6f', '#e74c3c', '#f39c12', '#27ae60', '#3498db', 
+            '#9b59b6', '#e67e22', '#ffd700', '#ffed4e', '#f1c40f'
+          ]}
+          wind={0.05}
+          initialVelocityX={8}
+          initialVelocityY={-20}
+          tweenDuration={5000}
+        />
       )}
       
       {/* Celebration Message Overlay */}
       {celebrationState.showCelebrationMessage && (
         <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none">
-          <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-8 py-6 rounded-2xl shadow-2xl transform animate-bounce">
-            <div className="flex items-center gap-3 mb-2">
-              <Trophy className="h-8 w-8 text-yellow-300 animate-pulse" />
-              <Sparkles className="h-6 w-6 text-yellow-200 animate-spin" />
-              <Star className="h-7 w-7 text-yellow-300 animate-pulse" />
-            </div>
-            <div className="text-center">
-              <h3 className="text-2xl font-bold mb-2 animate-pulse">
-                {celebrationState.celebrationMessage}
-              </h3>
-              {celebrationState.completedTask && (
-                <p className="text-lg opacity-90 font-medium">
-                  "{celebrationState.completedTask.title}"
-                </p>
-              )}
-            </div>
-            <div className="flex justify-center gap-2 mt-3">
-              <div className="w-2 h-2 bg-yellow-300 rounded-full animate-ping"></div>
-              <div className="w-2 h-2 bg-yellow-300 rounded-full animate-ping" style={{animationDelay: '0.2s'}}></div>
-              <div className="w-2 h-2 bg-yellow-300 rounded-full animate-ping" style={{animationDelay: '0.4s'}}></div>
+          <div className={`relative ${celebrationState.isMessageExiting ? 'animate-fadeOutDown' : 'animate-slideInScale'}`}>
+            {/* Glowing background effect */}
+            <div className="absolute inset-0 bg-gradient-to-r from-purple-600 via-pink-600 to-orange-500 rounded-3xl blur-lg opacity-75 animate-glowPulse scale-110"></div>
+            
+            {/* Main celebration card */}
+            <div className="relative bg-gradient-to-br from-purple-600 via-pink-600 to-orange-500 text-white px-8 py-6 rounded-3xl shadow-2xl transform">
+              
+              {/* Icon group with enhanced staggered animations */}
+              <div className="flex items-center justify-center gap-3 mb-4">
+                <Trophy className="h-8 w-8 text-yellow-300 animate-smoothBounce" />
+                <Sparkles className="h-6 w-6 text-yellow-200 animate-sparkleRotate" />
+              </div>
+              
+              {/* Text content with smooth animations */}
+              <div className="text-center">
+                <h3 className={`text-2xl font-bold mb-2 bg-gradient-to-r from-yellow-200 to-white bg-clip-text text-transparent ${
+                  celebrationState.isMessageExiting ? 'animate-fadeOutDown' : 'animate-fadeInUp'
+                }`} style={{animationDelay: celebrationState.isMessageExiting ? '0s' : '0.3s'}}>
+                  {celebrationState.celebrationMessage}
+                </h3>
+                {celebrationState.completedTask && (
+                  <p className={`text-lg opacity-90 font-medium bg-gradient-to-r from-yellow-100 to-gray-100 bg-clip-text text-transparent ${
+                    celebrationState.isMessageExiting ? 'animate-fadeOutDown' : 'animate-fadeInUp'
+                  }`} style={{animationDelay: celebrationState.isMessageExiting ? '0.1s' : '0.5s'}}>
+                    "{celebrationState.completedTask.title}"
+                  </p>
+                )}
+              </div>
+              
             </div>
           </div>
         </div>

@@ -4,6 +4,9 @@ import { Task } from '@/types/database';
 import { QUERY_KEYS, invalidateRelatedQueries } from '@/lib/queryClient';
 import { useActivityLogger } from '@/hooks/useActivityLogger';
 import { useAuth } from '@/contexts/AuthContext';
+import { createLogger } from '@/utils/logger';
+
+const logger = createLogger('useOptimizedKanbanMutations');
 
 interface BatchTaskUpdate {
   id: string;
@@ -189,7 +192,7 @@ export const useOptimizedKanbanMutations = (selectedProjectId?: string | null) =
       return { taskId, updates };
     },
     onError: (error, variables) => {
-      console.error('[MOVE TASK] Error:', error);
+      logger.error('Move task error', error);
       // Revert optimistic updates by refetching
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.kanban(selectedProjectId) });
     },
@@ -263,7 +266,7 @@ export const useOptimizedKanbanMutations = (selectedProjectId?: string | null) =
       });
     },
     onError: (error) => {
-      console.error('[CREATE TASK] Error:', error);
+      logger.error('Create task error', error);
     },
     onSettled: () => {
       invalidateRelatedQueries(queryClient, 'task', selectedProjectId);
@@ -352,7 +355,7 @@ export const useOptimizedKanbanMutations = (selectedProjectId?: string | null) =
       });
     },
     onError: (error) => {
-      console.error('[UPDATE TASK] Error:', error);
+      logger.error('Update task error', error);
     },
     onSettled: () => {
       invalidateRelatedQueries(queryClient, 'task', selectedProjectId);
@@ -397,7 +400,7 @@ export const useOptimizedKanbanMutations = (selectedProjectId?: string | null) =
       });
     },
     onError: (error) => {
-      console.error('[DELETE TASK] Error:', error);
+      logger.error('Delete task error', error);
     },
     onSettled: () => {
       invalidateRelatedQueries(queryClient, 'task', selectedProjectId);

@@ -4,6 +4,9 @@ import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { AuthContextType, Profile } from '@/types/auth';
 import { useManualProfileCreation } from '@/hooks/useManualProfileCreation';
+import { createLogger } from '@/utils/logger';
+
+const logger = createLogger('AUTH');
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -18,7 +21,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const fetchProfile = async (userId: string) => {
     try {
-      console.log(`[AUTH] Fetching profile for user: ${userId}`);
+      logger.debug('Fetching profile for user', userId);
       
       const { data: profileData, error } = await supabase
         .from('profiles')
@@ -27,19 +30,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .maybeSingle();
 
       if (error) {
-        console.error('[AUTH] Error fetching profile:', error);
+        logger.error('Error fetching profile', error);
         return null;
       }
 
       if (profileData) {
-        console.log('[AUTH] Profile found:', profileData);
+        logger.debug('Profile found', profileData);
         setProfile(profileData as Profile);
         return profileData as Profile;
       }
 
       return null;
     } catch (err) {
-      console.error('[AUTH] Profile fetch failed:', err);
+      logger.error('Profile fetch failed', err);
       return null;
     }
   };
@@ -52,14 +55,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     try {
-      console.log('[AUTH] Handling auth user:', currentUser.email);
+      logger.debug('Handling auth user', currentUser.email);
       
       // Tentar buscar perfil existente primeiro
       let profileData = await fetchProfile(currentUser.id);
       
       // Se não encontrou, tentar criar
       if (!profileData) {
-        console.log('[AUTH] Profile not found, creating...');
+        logger.debug('Profile not found, creating');
         profileData = await ensureProfileExists(currentUser);
         
         if (profileData) {
@@ -67,7 +70,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
     } catch (err) {
-      console.error('[AUTH] Error handling auth user:', err);
+      logger.error('Error handling auth user', err);
       setProfile(null);
     } finally {
       setLoading(false);
@@ -86,13 +89,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const initializeAuth = async () => {
       try {
-        console.log('[AUTH] Initializing auth...');
+        logger.debug('Initializing auth');
         
         // Get current session
         const { data: { session: currentSession }, error } = await supabase.auth.getSession();
         
         if (error) {
-          console.error('[AUTH] Error getting session:', error);
+          logger.error('Error getting session', error);
         }
 
         if (mounted) {
@@ -107,7 +110,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         }
       } catch (err) {
-        console.error('[AUTH] Initialization error:', err);
+        logger.error('Initialization error', err);
         if (mounted) {
           setLoading(false);
           setInitialized(true);
@@ -121,7 +124,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
       if (!mounted || !initialized) return;
 
-      console.log('[AUTH] Auth state changed:', event, newSession?.user?.email);
+      logger.debug('Auth state changed', { event, email: newSession?.user?.email });
       
       setSession(newSession);
       setUser(newSession?.user ?? null);
@@ -151,7 +154,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       return { error };
     } catch (err: any) {
-      console.error('[AUTH] Sign in error:', err);
+      logger.error('Sign in error', err);
       return { error: err };
     }
   };
@@ -173,7 +176,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       return { error };
     } catch (err: any) {
-      console.error('[AUTH] Sign up error:', err);
+      logger.error('Sign up error', err);
       return { error: err };
     }
   };
@@ -190,7 +193,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       return { error };
     } catch (err: any) {
-      console.error('[AUTH] Sign out error:', err);
+      logger.error('Sign out error', err);
       return { error: err };
     }
   };

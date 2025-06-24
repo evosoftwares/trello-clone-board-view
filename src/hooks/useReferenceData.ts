@@ -1,6 +1,9 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { createLogger } from '@/utils/logger';
+
+const logger = createLogger('useReferenceData');
 
 interface ReferenceData {
   profiles: Record<string, string>; // user_id -> name
@@ -27,7 +30,7 @@ export const useReferenceData = () => {
     const fetchReferenceData = async () => {
       try {
         setIsLoading(true);
-        console.log('[REFERENCE DATA] Fetching reference data...');
+        logger.info('Fetching reference data...');
 
         // Buscar todos os dados em paralelo
         const [
@@ -57,7 +60,7 @@ export const useReferenceData = () => {
         ].filter(Boolean);
 
         if (errors.length > 0) {
-          console.error('[REFERENCE DATA] Errors found:', errors);
+          logger.error('Errors found', errors);
           throw new Error(`Erro ao buscar dados: ${errors[0]?.message}`);
         }
 
@@ -83,7 +86,7 @@ export const useReferenceData = () => {
           tags: tagsResult.data || []
         };
 
-        console.log('[REFERENCE DATA] Data loaded:', {
+        logger.info('Data loaded', {
           profiles: Object.keys(newReferenceData.profiles).length,
           teamMembers: newReferenceData.teamMembers.length,
           tasks: newReferenceData.tasks.length,
@@ -95,7 +98,7 @@ export const useReferenceData = () => {
         setReferenceData(newReferenceData);
         setError(null);
       } catch (err: any) {
-        console.error('[REFERENCE DATA] Error:', err);
+        logger.error('Error fetching reference data', err);
         setError(err.message);
       } finally {
         setIsLoading(false);

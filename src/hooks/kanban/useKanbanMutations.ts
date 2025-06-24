@@ -3,6 +3,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { Task } from '@/types/database';
 import { useActivityLogger } from '@/hooks/useActivityLogger';
 import { useAuth } from '@/contexts/AuthContext';
+import { createLogger } from '@/utils/logger';
+
+const logger = createLogger('KANBAN');
 
 interface UseKanbanMutationsProps {
   tasks: Task[];
@@ -29,7 +32,7 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
     const updates: Array<{ id: string; column_id: string; position: number }> = [];
     const oldColumnId = taskToMove.column_id;
 
-    console.log('[CALCULATE POSITIONS] Task to move:', {
+    logger.debug('Task to move', {
       taskId,
       from: { columnId: oldColumnId, currentPosition: taskToMove.position },
       to: { columnId: newColumnId, destinationIndex }
@@ -41,7 +44,7 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
         .filter(t => t.column_id === newColumnId)
         .sort((a, b) => a.position - b.position);
 
-      console.log('[CALCULATE POSITIONS] Column tasks before reorder:', 
+      logger.debug('Column tasks before reorder', 
         columnTasks.map(t => ({ id: t.id, position: t.position, title: t.title }))
       );
 
@@ -53,7 +56,7 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
       const safeDestinationIndex = Math.min(Math.max(0, destinationIndex), reorderedTasks.length);
       reorderedTasks.splice(safeDestinationIndex, 0, taskToMove);
 
-      console.log('[CALCULATE POSITIONS] Column tasks after reorder:', 
+      logger.debug('Column tasks after reorder', 
         reorderedTasks.map((t, idx) => ({ id: t.id, newPosition: idx, title: t.title }))
       );
 
@@ -76,7 +79,7 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
         .filter(t => t.column_id === oldColumnId && t.id !== taskId)
         .sort((a, b) => a.position - b.position);
 
-      console.log('[CALCULATE POSITIONS] Old column tasks after removal:', 
+      logger.debug('Old column tasks after removal', 
         oldColumnTasks.map(t => ({ id: t.id, position: t.position, title: t.title }))
       );
 
@@ -95,7 +98,7 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
         .filter(t => t.column_id === newColumnId)
         .sort((a, b) => a.position - b.position);
 
-      console.log('[CALCULATE POSITIONS] New column tasks before insertion:', 
+      logger.debug('New column tasks before insertion', 
         newColumnTasks.map(t => ({ id: t.id, position: t.position, title: t.title }))
       );
 
@@ -104,7 +107,7 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
       const reorderedNewColumnTasks = [...newColumnTasks];
       reorderedNewColumnTasks.splice(safeDestinationIndex, 0, taskToMove);
 
-      console.log('[CALCULATE POSITIONS] New column tasks after insertion:', 
+      logger.debug('New column tasks after insertion', 
         reorderedNewColumnTasks.map((t, idx) => ({ id: t.id, newPosition: idx, title: t.title }))
       );
 
@@ -118,7 +121,7 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
       });
     }
 
-    console.log('[CALCULATE POSITIONS] Final updates:', updates);
+    logger.debug('Final updates', updates);
     return updates;
   };
 
@@ -143,11 +146,11 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
   };
 
   const moveTask = useCallback(async (taskId: string, sourceColumnId: string, newColumnId: string, destinationIndex?: number) => {
-    console.log('[MOVE TASK] Starting move:', { taskId, from: sourceColumnId, to: newColumnId, destinationIndex });
+    logger.info('Starting task move', { taskId, from: sourceColumnId, to: newColumnId, destinationIndex });
 
     const taskToMove = tasks.find(t => t.id === taskId);
     if (!taskToMove) {
-      console.error('[MOVE TASK] Task not found:', taskId);
+      logger.error('Task not found', taskId);
       return;
     }
 
@@ -157,11 +160,11 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
       -1
     ) + 1;
 
-    console.log('[MOVE TASK] Calculated position:', { destinationIndex, newPosition });
+    logger.debug('Calculated position', { destinationIndex, newPosition });
 
     const updates = calculateNewPositions(tasks, taskId, newColumnId, newPosition);
     if (updates.length === 0) {
-      console.log('[MOVE TASK] No updates needed');
+      logger.debug('No updates needed');
       return;
     }
 
@@ -187,7 +190,7 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
 
       // 3. Log da atividade apenas se houve mudança de coluna
       if (taskToMove.column_id !== newColumnId) {
-        console.log('[MOVE TASK] Logging activity for column change');
+        logger.debug('Logging activity for column change');
         await logActivity(
           'task',
           taskId,
@@ -210,20 +213,20 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
         );
       }
 
-      console.log('[MOVE TASK] Database sync completed successfully');
+      logger.info('Database sync completed successfully');
 
     } catch (err: any) {
-      console.error('[MOVE TASK] Error syncing with database:', err);
+      logger.error('Error syncing with database', err);
       setError(`Erro ao mover tarefa: ${err.message}`);
       setTasks(originalTasks);
     }
   }, [tasks, setTasks, setError, logActivity]);
 
   const createTask = useCallback(async (taskData: Partial<Task>, columnId: string) => {
-    console.log('[CREATE TASK] Starting task creation:', { taskData, columnId, user: !!user });
+    logger.info('Starting task creation', { taskData, columnId, user: !!user });
     
     if (!user) {
-      console.error('[CREATE TASK] User not authenticated');
+      logger.error('User not authenticated');
       setError('Usuário não autenticado');
       return;
     }
@@ -247,7 +250,7 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
         estimated_hours: null,
       };
       
-      console.log('[CREATE TASK] Task data to insert:', newTaskData);
+      logger.debug('Task data to insert', newTaskData);
 
       const { data, error } = await supabase
         .from('tasks')
@@ -256,11 +259,11 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
         .single();
 
       if (error) {
-        console.error('[CREATE TASK] Database error:', error);
+        logger.error('Database error', error);
         throw error;
       }
 
-      console.log('[CREATE TASK] Task created successfully:', data);
+      logger.info('Task created successfully', data);
 
       setTasks(currentTasks => [...currentTasks, data as Task]);
 
@@ -279,10 +282,10 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
         }
       );
 
-      console.log('[CREATE TASK] Activity logged');
+      logger.debug('Activity logged');
 
     } catch (err: any) {
-      console.error('[CREATE TASK] Error creating task:', err);
+      logger.error('Error creating task', err);
       setError(`Erro ao criar tarefa: ${err.message}`);
     }
   }, [tasks, setTasks, setError, user, logActivity]);
@@ -301,8 +304,8 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
       return;
     }
 
-    console.log('[UPDATE TASK] Original task:', originalTask);
-    console.log('[UPDATE TASK] Updates to apply:', updates);
+    logger.debug('Original task', originalTask);
+    logger.debug('Updates to apply', updates);
 
     // Clean and validate updates
     const cleanUpdates: any = {};
@@ -317,7 +320,7 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
             if (uuidRegex.test(value)) {
               cleanUpdates[key] = value;
             } else {
-              console.warn('[UPDATE TASK] Invalid project_id format:', value);
+              logger.warn('Invalid project_id format', value);
               cleanUpdates[key] = null;
             }
           }
@@ -327,7 +330,7 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
       }
     });
 
-    console.log('[UPDATE TASK] Clean updates:', cleanUpdates);
+    logger.debug('Clean updates', cleanUpdates);
     
     // Aplicar mudanças otimisticamente
     const updatedTasks = tasks.map(task => 
@@ -348,7 +351,7 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
         );
 
         if (error) {
-          console.error('[UPDATE TASK] RPC error:', error);
+          logger.error('RPC error', error);
           throw error;
         }
       } else {
@@ -359,7 +362,7 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
           .eq('id', taskId);
 
         if (error) {
-          console.error('[UPDATE TASK] Update error:', error);
+          logger.error('Update error', error);
           throw error;
         }
       }
@@ -372,11 +375,11 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
         .single();
 
       if (fetchError) {
-        console.error('[UPDATE TASK] Fetch error:', fetchError);
+        logger.error('Fetch error', fetchError);
         throw fetchError;
       }
 
-      console.log('[UPDATE TASK] Fresh task data:', freshTask);
+      logger.debug('Fresh task data', freshTask);
 
       // Atualizar state com dados frescos do banco
       setTasks(currentTasks => 
@@ -389,14 +392,14 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
           project_id: originalTask.project_id,
           column_id: originalTask.column_id
         });
-        console.log('[UPDATE TASK] Activity logged successfully');
+        logger.debug('Activity logged successfully');
       } catch (logError) {
-        console.warn('[UPDATE TASK] Failed to log activity:', logError);
+        logger.warn('Failed to log activity', logError);
         // Não falhar a atualização por causa do log
       }
 
     } catch (err: any) {
-      console.error('[UPDATE TASK] Error updating task:', err);
+      logger.error('Error updating task', err);
       setError(`Erro ao atualizar tarefa: ${err.message}`);
       setTasks(originalTasks); // Reverter mudanças otimistas
       throw err;
@@ -417,7 +420,7 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
       return;
     }
     
-    console.log('[DELETE TASK] Deleting task:', taskToDelete);
+    logger.info('Deleting task', taskToDelete);
     
     // Aplicar mudança otimisticamente
     const updatedTasks = tasks.filter(task => task.id !== taskId);
@@ -430,11 +433,11 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
         .eq('id', taskId);
 
       if (error) {
-        console.error('[DELETE TASK] Delete error:', error);
+        logger.error('Delete error', error);
         throw error;
       }
 
-      console.log('[DELETE TASK] Task deleted successfully');
+      logger.info('Task deleted successfully');
 
       // Log da atividade
       try {
@@ -442,14 +445,14 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
           project_id: taskToDelete.project_id,
           column_id: taskToDelete.column_id
         });
-        console.log('[DELETE TASK] Activity logged successfully');
+        logger.debug('Activity logged successfully');
       } catch (logError) {
-        console.warn('[DELETE TASK] Failed to log activity:', logError);
+        logger.warn('Failed to log activity', logError);
         // Não falhar a exclusão por causa do log
       }
 
     } catch (err: any) {
-      console.error('[DELETE TASK] Error deleting task:', err);
+      logger.error('Error deleting task', err);
       setError(`Erro ao deletar tarefa: ${err.message}`);
       setTasks(originalTasks); // Reverter mudanças otimistas
       throw err;
@@ -458,7 +461,7 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
 
   const fixAllPositions = useCallback(async () => {
     try {
-      console.log('[FIX POSITIONS] Starting manual position normalization...');
+      logger.info('Starting manual position normalization');
       
       // Buscar todas as colunas
       const { data: columns, error: columnsError } = await supabase
@@ -498,9 +501,9 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
         setTasks(freshTasks as Task[]);
       }
       
-      console.log('[FIX POSITIONS] Manual position normalization completed');
+      logger.info('Manual position normalization completed');
     } catch (err: any) {
-      console.error('Error fixing positions:', err);
+      logger.error('Error fixing positions', err);
       setError(err.message);
     }
   }, [tasks, setTasks, setError]);

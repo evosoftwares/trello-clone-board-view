@@ -2,6 +2,9 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { KanbanColumn, Task, Profile, Tag, TaskTag } from '@/types/database';
+import { createLogger } from '@/utils/logger';
+
+const logger = createLogger('useKanbanDataFetch');
 
 export const useKanbanDataFetch = () => {
   const [columns, setColumns] = useState<KanbanColumn[]>([]);
@@ -17,7 +20,7 @@ export const useKanbanDataFetch = () => {
     setError(null);
     
     try {
-      console.log('[FETCH] Starting data fetch...');
+      logger.info('Starting data fetch...');
       
       // Fetch columns
       const { data: columnsData, error: columnsError } = await supabase
@@ -78,7 +81,7 @@ export const useKanbanDataFetch = () => {
       if (taskTagsError) throw taskTagsError;
       setTaskTags(taskTagsData || []);
 
-      console.log('[FETCH] Data loaded successfully:', {
+      logger.info('Data loaded successfully', {
         columns: columnsData?.length,
         tasks: convertedTasks?.length,
         profiles: profilesData?.length,
@@ -87,7 +90,7 @@ export const useKanbanDataFetch = () => {
       });
 
     } catch (err: any) {
-      console.error('[FETCH] Error fetching data:', err);
+      logger.error('Error fetching data', err);
       setError(err.message);
     } finally {
       setLoading(false);

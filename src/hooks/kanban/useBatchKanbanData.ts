@@ -2,6 +2,9 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { QUERY_KEYS } from '@/lib/queryClient';
 import { KanbanColumn, Task, Profile, Tag, TaskTag } from '@/types/database';
+import { createLogger } from '@/utils/logger';
+
+const logger = createLogger('useBatchKanbanData');
 
 interface BatchKanbanData {
   columns: KanbanColumn[];
@@ -12,7 +15,7 @@ interface BatchKanbanData {
 }
 
 const fetchBatchKanbanData = async (selectedProjectId?: string | null): Promise<BatchKanbanData> => {
-  console.log('[BATCH FETCH] Starting batch data fetch for project:', selectedProjectId);
+  logger.info('Starting batch data fetch for project', selectedProjectId);
   
   // Execute todas as queries em paralelo usando Promise.all
   const [
@@ -64,7 +67,7 @@ const fetchBatchKanbanData = async (selectedProjectId?: string | null): Promise<
   ].filter(Boolean);
 
   if (errors.length > 0) {
-    console.error('[BATCH FETCH] Errors found:', errors);
+    logger.error('Batch fetch errors found', errors);
     throw new Error(`Batch fetch failed: ${errors[0]?.message}`);
   }
 
@@ -76,7 +79,7 @@ const fetchBatchKanbanData = async (selectedProjectId?: string | null): Promise<
     status_image_filenames: task.status_image_filenames || []
   }));
 
-  console.log('[BATCH FETCH] Data loaded successfully:', {
+  logger.info('Data loaded successfully', {
     columns: columnsResult.data?.length,
     tasks: convertedTasks.length,
     profiles: profilesResult.data?.length,

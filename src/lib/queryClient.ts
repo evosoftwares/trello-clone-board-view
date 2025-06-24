@@ -1,4 +1,7 @@
 import { QueryClient } from '@tanstack/react-query';
+import { createLogger } from '@/utils/logger';
+
+const logger = createLogger('QueryClient');
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -21,7 +24,7 @@ export const queryClient = new QueryClient({
     mutations: {
       retry: false, // Não retry mutations automaticamente
       onError: (error) => {
-        console.error('[MUTATION ERROR]', error);
+        logger.error('Mutation error', error);
       },
     },
   },

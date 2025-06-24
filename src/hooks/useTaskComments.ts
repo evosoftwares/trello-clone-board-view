@@ -4,6 +4,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { TaskComment, Profile } from '@/types/database';
+import { createLogger } from '@/utils/logger';
+
+const logger = createLogger('useTaskComments');
 
 export const useTaskComments = (taskId: string) => {
   const [comments, setComments] = useState<TaskComment[]>([]);
@@ -40,7 +43,7 @@ export const useTaskComments = (taskId: string) => {
 
       setComments(commentsData || []);
     } catch (error: any) {
-      console.error('Error fetching comments:', error);
+      logger.error('Error fetching comments', error);
       toast({
         title: 'Erro',
         description: 'Falha ao carregar comentários',
@@ -87,7 +90,7 @@ export const useTaskComments = (taskId: string) => {
         className: 'bg-blue-50 border-blue-200 text-blue-900'
       });
     } catch (error: any) {
-      console.error('Error adding comment:', error);
+      logger.error('Error adding comment', error);
       toast({
         title: 'Erro',
         description: 'Falha ao adicionar comentário',
@@ -116,7 +119,7 @@ export const useTaskComments = (taskId: string) => {
         className: 'bg-red-50 border-red-200 text-red-900'
       });
     } catch (error: any) {
-      console.error('Error deleting comment:', error);
+      logger.error('Error deleting comment', error);
       toast({
         title: 'Erro',
         description: 'Falha ao remover comentário',

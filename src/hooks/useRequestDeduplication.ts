@@ -1,4 +1,7 @@
 import { useRef, useCallback } from 'react';
+import { createLogger } from '@/utils/logger';
+
+const logger = createLogger('useRequestDeduplication');
 
 interface RequestCache {
   [key: string]: {
@@ -23,7 +26,7 @@ export const useRequestDeduplication = () => {
 
     // Return cached promise if it's still pending and recent
     if (cached && (now - cached.timestamp) < cacheDuration) {
-      console.log(`[DEDUP] Using cached request for key: ${key}`);
+      logger.info(`Using cached request for key: ${key}`);
       return cached.promise;
     }
 
@@ -36,7 +39,7 @@ export const useRequestDeduplication = () => {
     });
 
     // Create new request
-    console.log(`[DEDUP] Creating new request for key: ${key}`);
+    logger.info(`Creating new request for key: ${key}`);
     const promise = requestFn().finally(() => {
       // Clean up after request completes
       setTimeout(() => {
