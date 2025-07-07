@@ -392,10 +392,7 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
   }, [tasks, setTasks, setError, user, logActivity]);
 
   const updateTask = useCallback(async (taskId: string, updates: Partial<Omit<Task, 'id'>>) => {
-    logger.info('🔄 updateTask called', { taskId, updates });
-    
     if (!user) {
-      logger.error('❌ Usuário não autenticado');
       setError('Usuário não autenticado');
       return;
     }
@@ -404,7 +401,6 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
     const originalTask = tasks.find(t => t.id === taskId);
     
     if (!originalTask) {
-      logger.error('❌ Tarefa não encontrada', { taskId });
       setError('Tarefa não encontrada');
       return;
     }
@@ -449,16 +445,13 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
     setTasks(updatedTasks);
 
     try {
-      logger.info('🔄 Iniciando update no banco de dados...');
       // Update direto incluindo timestamp quando houver mudança de responsável
       if (cleanUpdates.assignee !== undefined && originalTask?.assignee !== cleanUpdates.assignee) {
-        logger.info('👤 Mudança de responsável detectada, atualizando com timestamp...');
         const updateData = { 
           ...cleanUpdates, 
           current_status_start_time: new Date().toISOString() 
         };
         
-        logger.info('📝 Executando update com dados:', updateData);
         const { error } = await supabase
           .from('tasks')
           .update(updateData)
@@ -468,7 +461,6 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
           logger.error('[KANBAN] Update error', error);
           throw error;
         }
-        logger.info('✅ Update com mudança de responsável executado com sucesso!');
       } else {
         // Atualização normal sem mudança de responsável
         // Se project_id está sendo atualizado, usar cast explícito
@@ -515,18 +507,15 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
             throw projectError;
           }
         } else {
-          logger.info('📝 Executando update normal...');
           const { error } = await updateQuery;
           if (error) {
             logger.error('Update error', error);
             throw error;
           }
-          logger.info('✅ Update normal executado com sucesso!');
         }
       }
 
       // Buscar dados atualizados
-      logger.info('🔄 Buscando dados atualizados da tarefa...');
       const { data: freshTask, error: fetchError } = await supabase
         .from('tasks')
         .select('*')
@@ -538,14 +527,12 @@ export const useKanbanMutations = ({ tasks, setTasks, setError }: UseKanbanMutat
         throw fetchError;
       }
 
-      logger.info('✅ Dados atualizados obtidos:', freshTask);
+      logger.debug('Fresh task data', freshTask);
 
       // Atualizar state com dados frescos do banco
-      logger.info('🔄 Atualizando state local...');
       setTasks(currentTasks => 
         currentTasks.map(task => (task.id === taskId ? freshTask as Task : task))
       );
-      logger.info('✅ State local atualizado!');
 
       // Log da atividade
       try {

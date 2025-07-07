@@ -33,25 +33,20 @@ export function SecurityAlert({
   const [error, setError] = useState("")
 
   const handleConfirm = async () => {
-    console.log('🔐 SecurityAlert: Verificando senha...', { password, expectedPassword: import.meta.env.VITE_SECURITY_PASSWORD || "admin123" })
     const securityPassword = import.meta.env.VITE_SECURITY_PASSWORD || "admin123"
     if (password === securityPassword) {
-      console.log('✅ SecurityAlert: Senha correta!')
       setPassword("")
       setError("")
       // Execute the callback and let it handle the modal closing
       try {
-        console.log('🔄 SecurityAlert: Executando callback...')
         await onConfirm()
-        console.log('✅ SecurityAlert: Callback executado com sucesso!')
         // Only close the security alert if the callback succeeds
         onOpenChange(false)
       } catch (error) {
-        console.error('❌ SecurityAlert: Erro ao executar callback:', error)
+        console.error('Error executing confirmed callback:', error)
         // Don't close the security alert on error, let user try again
       }
     } else {
-      console.log('❌ SecurityAlert: Senha incorreta!')
       setError("Senha incorreta. Tente novamente.")
       setPassword("")
     }

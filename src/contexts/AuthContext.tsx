@@ -128,40 +128,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
-      if (!mounted) return;
-
-      logger.debug('Auth state changed', { event, email: newSession?.user?.email });
-      
+      logger.info(`[AUTH] onAuthStateChange event: ${event}`, { hasSession: !!newSession });
       setSession(newSession);
       setUser(newSession?.user ?? null);
-
-      if (event === 'SIGNED_IN' && newSession?.user) {
-        try {
-          await handleAuthUser(newSession.user);
-        } catch (userError) {
-          logger.error('Error handling auth user during sign in', userError);
-          setLoading(false);
-        }
-      } else if (event === 'SIGNED_OUT') {
-        setProfile(null);
-        setLoading(false);
-      } else if (event === 'TOKEN_REFRESHED' && newSession?.user) {
-        // Para refresh de token, não precisamos recriar o perfil
-        setLoading(false);
-      } else if (event === 'INITIAL_SESSION') {
-        // Processar sessão inicial se não foi processada durante a inicialização
+      
+      try {
         if (newSession?.user) {
-          try {
-            await handleAuthUser(newSession.user);
-          } catch (userError) {
-            logger.error('Error handling auth user during initial session', userError);
-            setLoading(false);
-          }
+          await handleAuthUser(newSession.user);
         } else {
-          setLoading(false);
+          // Garante que o perfil seja limpo se não houver sessão
+          setProfile(null);
         }
-      } else {
-        // Para outros eventos, definir loading como false
+      } catch (error) {
+        logger.error(`[AUTH] Error handling user on ${event} event`, error);
+        setProfile(null);
+      } finally {
+        // ESSENCIAL: Garante que o loading seja finalizado em todos os casos
         setLoading(false);
       }
     });
