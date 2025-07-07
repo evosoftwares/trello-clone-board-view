@@ -11,6 +11,7 @@ import { Task, TeamMember, Project, Tag as TagType, TaskTag } from '@/types/data
 import { TagSelector } from '@/components/tags/TagSelector';
 import { TaskComments } from '@/components/comments/TaskComments';
 import { useTagMutations } from '@/hooks/useTagMutations';
+import { useAuth } from '@/contexts/AuthContext';
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
@@ -159,6 +160,19 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   };
 
   const onSubmit = async (values: z.infer<typeof taskFormSchema>) => {
+    logger.info('🔄 onSubmit called with values:', values);
+    
+    // Debug do user context
+    const { user } = useAuth();
+    logger.info('📊 User context state:', { 
+      user: user ? { id: user.id, email: user.email } : null,
+      hasUser: !!user,
+      isCreating,
+      taskId: task?.id,
+      hasUpdateTask: !!updateTask,
+      hasCreateTask: !!createTask
+    });
+
     // Handle project_id UUID validation and conversion
     let projectId: string | null = null;
     if (values.project_id && values.project_id !== 'null' && values.project_id !== '') {
@@ -179,6 +193,8 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
       complexity: values.complexity,
       project_id: projectId,
     };
+
+    logger.info('📝 Task data prepared:', taskData);
 
     const performOperation = async () => {
       setIsSaving(true);
