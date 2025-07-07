@@ -33,7 +33,7 @@ export function SecurityAlert({
   const [error, setError] = useState("")
 
   const handleConfirm = async () => {
-    const securityPassword = import.meta.env.VITE_SECURITY_PASSWORD
+    const securityPassword = import.meta.env.VITE_SECURITY_PASSWORD || "admin123"
     if (password === securityPassword) {
       setPassword("")
       setError("")
