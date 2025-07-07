@@ -183,13 +183,15 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     const performOperation = async () => {
       setIsSaving(true);
       try {
-        logger.info('Form values', values);
+        logger.info('🔄 Iniciando operação...', { isCreating, taskId: task?.id, taskData });
         
         if (isCreating) {
           if (!createTask) {
             throw new Error('createTask function is not provided');
           }
+          logger.info('🆕 Criando tarefa...');
           await createTask(taskData);
+          logger.info('✅ Tarefa criada com sucesso!');
           toast({ 
             title: 'Sucesso! ✨', 
             description: 'Tarefa criada com sucesso.',
@@ -197,9 +199,13 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
           });
         } else {
           if (!updateTask || !task) {
-            throw new Error('updateTask function or task is not provided');
+            const errorMsg = !updateTask ? 'updateTask function não fornecida' : 'task não encontrada';
+            logger.error('❌ Erro de validação:', errorMsg);
+            throw new Error(errorMsg);
           }
+          logger.info('📝 Atualizando tarefa...', { taskId: task.id, updates: taskData });
           await updateTask(task.id, taskData);
+          logger.info('✅ Tarefa atualizada com sucesso!');
           toast({ 
             title: 'Sucesso! ✨', 
             description: 'Tarefa atualizada com sucesso.',
@@ -207,13 +213,17 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
           });
         }
         
+        logger.info('🔄 Refreshing data...');
+        refreshData();
+        
         // Close modal immediately after successful operation
+        logger.info('🚪 Fechando modal...');
         onClose();
       } catch (error) {
-        logger.error(`${isCreating ? 'Create' : 'Update'} error`, error);
+        logger.error(`❌ ${isCreating ? 'Create' : 'Update'} error`, error);
         toast({ 
           title: 'Erro', 
-          description: `Falha ao ${isCreating ? 'criar' : 'atualizar'} a tarefa.`, 
+          description: `Falha ao ${isCreating ? 'criar' : 'atualizar'} a tarefa: ${error instanceof Error ? error.message : 'Erro desconhecido'}`, 
           variant: 'destructive' 
         });
       } finally {
