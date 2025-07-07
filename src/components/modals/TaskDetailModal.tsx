@@ -12,7 +12,7 @@ import { TagSelector } from '@/components/tags/TagSelector';
 import { TaskComments } from '@/components/comments/TaskComments';
 import { useTagMutations } from '@/hooks/useTagMutations';
 
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -159,13 +159,25 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   };
 
   const onSubmit = async (values: z.infer<typeof taskFormSchema>) => {
+    // Handle project_id UUID validation and conversion
+    let projectId: string | null = null;
+    if (values.project_id && values.project_id !== 'null' && values.project_id !== '') {
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (uuidRegex.test(values.project_id)) {
+        projectId = values.project_id;
+      } else {
+        logger.warn('Invalid project_id format, converting to null', values.project_id);
+        projectId = null;
+      }
+    }
+
     const taskData: Partial<Task> = {
       title: values.title.trim(),
       description: values.description?.trim() || null,
       assignee: values.assignee === UNASSIGNED_VALUE ? null : values.assignee,
       function_points: values.function_points || 0,
       complexity: values.complexity,
-      project_id: values.project_id || null,
+      project_id: projectId,
     };
 
     const performOperation = async () => {
@@ -194,6 +206,8 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
             className: 'bg-blue-50 border-blue-200 text-blue-900'
           });
         }
+        
+        // Close modal immediately after successful operation
         onClose();
       } catch (error) {
         logger.error(`${isCreating ? 'Create' : 'Update'} error`, error);
@@ -228,6 +242,8 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
           description: 'A tarefa foi deletada com sucesso.',
           className: 'bg-red-50 border-red-200 text-red-900'
         });
+        
+        // Close modal immediately after successful deletion
         onClose();
       } catch (error) {
         logger.error('Delete error', error);
@@ -282,6 +298,9 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
               </div>
             )}
           </DialogTitle>
+          <DialogDescription>
+            {isCreating ? 'Preencha os detalhes para criar uma nova tarefa' : 'Edite os detalhes da tarefa'}
+          </DialogDescription>
         </DialogHeader>
         
         <div className="px-8 pb-8 overflow-y-auto">
@@ -375,7 +394,10 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                         <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
                         Projeto
                       </FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <Select 
+                        onValueChange={(value) => field.onChange(value === "null" ? null : value)} 
+                        value={field.value || "null"}
+                      >
                         <FormControl>
                           <SelectTrigger className="h-12 border-gray-200 rounded-xl focus:border-blue-500 transition-all duration-200">
                             <SelectValue placeholder="Sem projeto" />

@@ -7,6 +7,7 @@ interface TeamMemberProps {
   member: Profile & {
     taskCount: number;
     functionPoints: number;
+    earnedPoints?: number;
   };
 }
 
@@ -45,10 +46,21 @@ const TeamMember: React.FC<TeamMemberProps> = ({ member }) => {
         </div>
         
         <div className="flex items-center space-x-2 ml-2 shrink-0">
+            {/* Current task points */}
             <div className="h-8 px-3 bg-blue-100 rounded-full flex items-center justify-center">
                 <span className="text-sm font-bold text-blue-600">{member.functionPoints}</span>
             </div>
-            <span className="text-xs text-gray-500 font-medium">FPs</span>
+            <span className="text-xs text-gray-500 font-medium">Atual</span>
+            
+            {/* Earned points (if available) */}
+            {member.earnedPoints !== undefined && (
+              <>
+                <div className="h-8 px-3 bg-green-100 rounded-full flex items-center justify-center">
+                    <span className="text-sm font-bold text-green-600">{member.earnedPoints}</span>
+                </div>
+                <span className="text-xs text-gray-500 font-medium">Total</span>
+              </>
+            )}
         </div>
       </div>
     </div>

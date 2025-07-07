@@ -63,7 +63,7 @@ const ProjectsSummary = () => {
                   <p className="text-xs text-gray-500 capitalize">{project.client_name || 'Interno'}</p>
                 </div>
                 <div className="flex items-center space-x-2 ml-2 shrink-0">
-                  <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                  <div className="min-w-8 h-8 px-2 bg-green-100 rounded-full flex items-center justify-center">
                       <span className="text-sm font-bold text-green-600">{project.totalFunctionPoints}</span>
                   </div>
                   <span className="text-xs text-gray-500 font-medium">FPs</span>

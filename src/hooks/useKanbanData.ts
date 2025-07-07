@@ -34,8 +34,8 @@ export const useKanbanData = (selectedProjectId?: string | null) => {
   }, [selectedProjectId, fetchAllData]);
 
   useEffect(() => {
-    refreshData();
-  }, [refreshData]);
+    fetchAllData(selectedProjectId);
+  }, [selectedProjectId, fetchAllData]);
 
   return {
     columns,

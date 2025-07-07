@@ -96,6 +96,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         if (error) {
           logger.error('Error getting session', error);
+          // Não retornar aqui, continuar o processo
         }
 
         if (mounted) {
@@ -104,7 +105,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setInitialized(true);
           
           if (currentSession?.user) {
-            await handleAuthUser(currentSession.user);
+            try {
+              await handleAuthUser(currentSession.user);
+            } catch (userError) {
+              logger.error('Error handling auth user during initialization', userError);
+              setLoading(false);
+            }
           } else {
             setLoading(false);
           }
@@ -122,17 +128,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
-      if (!mounted || !initialized) return;
+      if (!mounted) return;
 
       logger.debug('Auth state changed', { event, email: newSession?.user?.email });
       
       setSession(newSession);
       setUser(newSession?.user ?? null);
 
-      if (newSession?.user) {
-        await handleAuthUser(newSession.user);
-      } else {
+      if (event === 'SIGNED_IN' && newSession?.user) {
+        try {
+          await handleAuthUser(newSession.user);
+        } catch (userError) {
+          logger.error('Error handling auth user during sign in', userError);
+          setLoading(false);
+        }
+      } else if (event === 'SIGNED_OUT') {
         setProfile(null);
+        setLoading(false);
+      } else if (event === 'TOKEN_REFRESHED' && newSession?.user) {
+        // Para refresh de token, não precisamos recriar o perfil
+        setLoading(false);
+      } else if (event === 'INITIAL_SESSION') {
+        // Processar sessão inicial se não foi processada durante a inicialização
+        if (newSession?.user) {
+          try {
+            await handleAuthUser(newSession.user);
+          } catch (userError) {
+            logger.error('Error handling auth user during initial session', userError);
+            setLoading(false);
+          }
+        } else {
+          setLoading(false);
+        }
+      } else {
+        // Para outros eventos, definir loading como false
         setLoading(false);
       }
     });
@@ -144,18 +173,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [ensureProfileExists, initialized]);
+  }, [ensureProfileExists]);
 
   const signIn = async (email: string, password: string) => {
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      logger.debug('Attempting sign in for:', email);
+      setLoading(true);
+      
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password
       });
-      return { error };
+      
+      if (error) {
+        logger.error('Sign in error from Supabase:', error);
+        return { error };
+      }
+      
+      logger.debug('Sign in successful:', data.user?.email);
+      return { error: null };
     } catch (err: any) {
-      logger.error('Sign in error', err);
+      logger.error('Sign in exception:', err);
       return { error: err };
+    } finally {
+      // Não definir loading como false aqui, deixar o onAuthStateChange cuidar disso
     }
   };
 

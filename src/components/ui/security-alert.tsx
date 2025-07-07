@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input"
 interface SecurityAlertProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onConfirm: () => void
+  onConfirm: () => void | Promise<void>
   title?: string
   description?: string
 }
@@ -32,12 +32,20 @@ export function SecurityAlert({
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
 
-  const handleConfirm = () => {
-    if (password === "asd123") {
+  const handleConfirm = async () => {
+    const securityPassword = import.meta.env.VITE_SECURITY_PASSWORD
+    if (password === securityPassword) {
       setPassword("")
       setError("")
-      onConfirm()
-      onOpenChange(false)
+      // Execute the callback and let it handle the modal closing
+      try {
+        await onConfirm()
+        // Only close the security alert if the callback succeeds
+        onOpenChange(false)
+      } catch (error) {
+        console.error('Error executing confirmed callback:', error)
+        // Don't close the security alert on error, let user try again
+      }
     } else {
       setError("Senha incorreta. Tente novamente.")
       setPassword("")

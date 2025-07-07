@@ -102,10 +102,58 @@ export interface ActivityLog {
   entity_type: 'task' | 'project' | 'team_member' | 'column' | 'tag' | 'task_comment';
   entity_id: string;
   action_type: 'create' | 'update' | 'delete' | 'move';
-  old_data?: any;
-  new_data?: any;
+  old_data?: Record<string, unknown>;
+  new_data?: Record<string, unknown>;
   changed_by?: string;
   user_id?: string;
-  context?: any;
+  context?: Record<string, unknown>;
   created_at: string;
+}
+
+export interface UserPoints {
+  id: string;
+  user_id: string;
+  total_points: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserPointAward {
+  id: string;
+  user_id: string;
+  task_id: string;
+  points_awarded: number;
+  awarded_at: string;
+  task_title: string;
+  task_complexity: string;
+  from_column_id?: string;
+  to_column_id: string;
+  project_id?: string;
+}
+
+export interface UserPointsWithNames {
+  id: string;
+  user_id: string;
+  user_name: string;
+  email?: string;
+  avatar?: string;
+  total_points: number;
+  created_at: string;
+  updated_at: string;
+  total_awards: number;
+}
+
+export interface UserPointAwardDetailed {
+  id: string;
+  user_id: string;
+  user_name: string;
+  task_id: string;
+  task_title: string;
+  points_awarded: number;
+  task_complexity: string;
+  awarded_at: string;
+  from_column_name?: string;
+  to_column_name: string;
+  project_name?: string;
+  project_color?: string;
 }

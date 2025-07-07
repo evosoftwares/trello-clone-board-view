@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { DragDropContext, DropResult } from '@hello-pangea/dnd';
 import { Trophy, Star, Sparkles } from 'lucide-react';
 import Confetti from 'react-confetti';
@@ -8,18 +8,21 @@ import { useKanbanData } from '@/hooks/useKanbanData';
 import { useProjectData } from '@/hooks/useProjectData';
 import { useProjectContext } from '@/contexts/ProjectContext';
 import { useSecurityCheck } from '@/hooks/useSecurityCheck';
+import { useUserPoints } from '@/hooks/useUserPoints';
 import KanbanColumn from './KanbanColumn';
 import { TaskDetailModal } from './modals/TaskDetailModal';
 import TeamMember from './TeamMember';
 import { Task, Column } from '@/types/database';
 import ProjectsSummary from './ProjectsSummary';
 import { SecurityAlert } from '@/components/ui/security-alert';
+import ErrorBoundary from './ErrorBoundary';
 
 const logger = createLogger('KanbanBoard');
 
 const KanbanBoard = () => {
   const { selectedProjectId } = useProjectContext();
   const { projects } = useProjectData();
+  const { getTaskPointAward, userPoints } = useUserPoints();
   const { 
     isSecurityAlertOpen, 
     showSecurityAlert, 
@@ -51,8 +54,27 @@ const KanbanBoard = () => {
     showCelebrationMessage: false,
     isMessageExiting: false,
     completedTask: null as Task | null,
-    celebrationMessage: ""
+    celebrationMessage: "",
+    pointsAwarded: 0,
+    assigneeName: ""
   });
+
+  // Refs for cleanup
+  const celebrationTimeouts = useRef<NodeJS.Timeout[]>([]);
+
+  // Cleanup function for timeouts
+  const clearAllTimeouts = useCallback(() => {
+    celebrationTimeouts.current.forEach(timeout => clearTimeout(timeout));
+    celebrationTimeouts.current = [];
+  }, []);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      celebrationTimeouts.current.forEach(timeout => clearTimeout(timeout));
+      celebrationTimeouts.current = [];
+    };
+  }, []);
 
   const handleDragEnd = (result: DropResult) => {
     const { destination, source, draggableId } = result;
@@ -106,9 +128,43 @@ const KanbanBoard = () => {
   };
 
   // Epic celebration sequence function
-  const triggerEpicCelebration = useCallback((completedTask: Task | null) => {
+  const triggerEpicCelebration = useCallback(async (completedTask: Task | null) => {
+    // Clear any existing timeouts first
+    clearAllTimeouts();
+    
     // Generate random message once
     const celebrationMessage = getCelebrationMessage(completedTask);
+    
+    // Get assignee information and points awarded
+    let pointsAwarded = 0;
+    let assigneeName = "";
+    
+    if (completedTask?.assignee) {
+      const assignee = profiles.find(p => p.id === completedTask.assignee);
+      assigneeName = assignee?.name || "";
+      
+      // Check if points were awarded (with a small delay to ensure DB transaction completed)
+      const pointsTimeout = setTimeout(async () => {
+        if (completedTask.assignee) {
+          try {
+            const pointAward = await getTaskPointAward(completedTask.id, completedTask.assignee);
+            if (pointAward) {
+              pointsAwarded = pointAward.points_awarded;
+              
+              // Update celebration state with points info
+              setCelebrationState(prev => ({
+                ...prev,
+                pointsAwarded,
+                assigneeName
+              }));
+            }
+          } catch (error) {
+            logger.error('Error fetching task point award', error);
+          }
+        }
+      }, 1000);
+      celebrationTimeouts.current.push(pointsTimeout);
+    }
     
     // Start single intense confetti animation
     setCelebrationState({
@@ -116,37 +172,44 @@ const KanbanBoard = () => {
       showCelebrationMessage: true,
       isMessageExiting: false,
       completedTask,
-      celebrationMessage
+      celebrationMessage,
+      pointsAwarded: completedTask?.function_points || 0, // Show task points immediately
+      assigneeName
     });
 
     // Start exit animation for message after 4.5 seconds
-    setTimeout(() => {
+    const exitTimeout = setTimeout(() => {
       setCelebrationState(prev => ({
         ...prev,
         isMessageExiting: true
       }));
     }, 4500);
+    celebrationTimeouts.current.push(exitTimeout);
 
     // Completely hide celebration message after exit animation (5.1 seconds)
-    setTimeout(() => {
+    const hideTimeout = setTimeout(() => {
       setCelebrationState(prev => ({
         ...prev,
         showCelebrationMessage: false,
         isMessageExiting: false
       }));
     }, 5100);
+    celebrationTimeouts.current.push(hideTimeout);
 
     // Stop confetti and cleanup after 10 seconds (let all pieces fall)
-    setTimeout(() => {
+    const cleanupTimeout = setTimeout(() => {
       setCelebrationState({
         showConfetti: false,
         showCelebrationMessage: false,
         isMessageExiting: false,
         completedTask: null,
-        celebrationMessage: ""
+        celebrationMessage: "",
+        pointsAwarded: 0,
+        assigneeName: ""
       });
     }, 10000);
-  }, []);
+    celebrationTimeouts.current.push(cleanupTimeout);
+  }, [profiles, getTaskPointAward, clearAllTimeouts]);
 
   // Get random celebration messages
   const getCelebrationMessage = (task: Task | null) => {
@@ -191,17 +254,24 @@ const KanbanBoard = () => {
     );
   };
 
-  // Calcular estatísticas dos membros
-  const teamMembersWithStats = profiles.map(member => {
-    const memberTasks = tasks.filter(task => task.assignee === member.id);
-    const functionPoints = memberTasks.reduce((sum, task) => sum + (task.function_points || 0), 0);
-    
-    return {
-      ...member,
-      taskCount: memberTasks.length,
-      functionPoints
-    };
-  });
+  // Calcular estatísticas dos membros com memoização
+  const teamMembersWithStats = useMemo(() => {
+    return profiles.map(member => {
+      const memberTasks = tasks.filter(task => task.assignee === member.id);
+      const currentTaskPoints = memberTasks.reduce((sum, task) => sum + (task.function_points || 0), 0);
+      
+      // Find earned points using only user_id for consistency
+      const earnedPointsData = userPoints.find(up => up.user_id === member.id);
+      const earnedPoints = earnedPointsData?.total_points || 0;
+      
+      return {
+        ...member,
+        taskCount: memberTasks.length,
+        functionPoints: currentTaskPoints, // Current task points
+        earnedPoints: earnedPoints // Total earned points from completed tasks
+      };
+    });
+  }, [profiles, tasks, userPoints]);
 
   if (loading) {
     return (
@@ -222,10 +292,10 @@ const KanbanBoard = () => {
   return (
     <div className="w-full h-full flex flex-col space-y-4 lg:space-y-6">
       {/* Epic Celebration Effects - Single Intense Confetti */}
-      {celebrationState.showConfetti && (
+      {celebrationState.showConfetti && typeof window !== 'undefined' && (
         <Confetti
-          width={window.innerWidth}
-          height={window.innerHeight}
+          width={window.innerWidth || 1200}
+          height={window.innerHeight || 800}
           recycle={false}
           numberOfPieces={800}
           gravity={0.15}
@@ -271,6 +341,20 @@ const KanbanBoard = () => {
                     "{celebrationState.completedTask.title}"
                   </p>
                 )}
+                
+                {/* Points awarded message */}
+                {celebrationState.pointsAwarded > 0 && celebrationState.assigneeName && (
+                  <div className={`mt-3 p-3 bg-white bg-opacity-20 rounded-2xl backdrop-blur-sm ${
+                    celebrationState.isMessageExiting ? 'animate-fadeOutDown' : 'animate-fadeInUp'
+                  }`} style={{animationDelay: celebrationState.isMessageExiting ? '0.2s' : '0.7s'}}>
+                    <p className="text-sm font-semibold text-yellow-100">
+                      🎯 {celebrationState.pointsAwarded} pontos de função conquistados!
+                    </p>
+                    <p className="text-xs text-yellow-200 mt-1">
+                      Parabéns, {celebrationState.assigneeName}!
+                    </p>
+                  </div>
+                )}
               </div>
               
             </div>
@@ -306,17 +390,19 @@ const KanbanBoard = () => {
                 ${index === columns.length - 1 ? 'mr-4 sm:mr-0' : ''}
               `}
             >
-              <KanbanColumn
-                column={column}
-                tasks={tasks}
-                tags={tags}
-                taskTags={taskTags}
-                projects={projects}
-                profiles={profiles}
-                columns={columns}
-                onAddTask={handleQuickAddTask}
-                onTaskClick={setSelectedTask}
-              />
+              <ErrorBoundary name={`KanbanColumn-${column.title}`}>
+                <KanbanColumn
+                  column={column}
+                  tasks={tasks}
+                  tags={tags}
+                  taskTags={taskTags}
+                  projects={projects}
+                  profiles={profiles}
+                  columns={columns}
+                  onAddTask={handleQuickAddTask}
+                  onTaskClick={setSelectedTask}
+                />
+              </ErrorBoundary>
             </div>
           ))}
         </div>
@@ -324,35 +410,39 @@ const KanbanBoard = () => {
 
       {/* Task Detail Modal */}
       {selectedTask && (
-        <TaskDetailModal
-          task={selectedTask}
-          isOpen={true}
-          onClose={() => setSelectedTask(null)}
-          teamMembers={profiles}
-          projects={projects}
-          tags={tags}
-          taskTags={taskTags}
-          updateTask={updateTask}
-          deleteTask={deleteTask}
-          refreshData={refreshData}
-        />
+        <ErrorBoundary name="TaskDetailModal-Edit">
+          <TaskDetailModal
+            task={selectedTask}
+            isOpen={true}
+            onClose={() => setSelectedTask(null)}
+            teamMembers={profiles}
+            projects={projects}
+            tags={tags}
+            taskTags={taskTags}
+            updateTask={updateTask}
+            deleteTask={deleteTask}
+            refreshData={refreshData}
+          />
+        </ErrorBoundary>
       )}
 
       {isCreatingTask && (
-        <TaskDetailModal
-          isOpen={true}
-          onClose={() => {
-            setIsCreatingTask(false);
-            setCreatingTaskColumn(null);
-          }}
-          teamMembers={profiles}
-          projects={projects}
-          tags={tags}
-          taskTags={[]}
-          createTask={handleCreateTask}
-          deleteTask={deleteTask}
-          refreshData={refreshData}
-        />
+        <ErrorBoundary name="TaskDetailModal-Create">
+          <TaskDetailModal
+            isOpen={true}
+            onClose={() => {
+              setIsCreatingTask(false);
+              setCreatingTaskColumn(null);
+            }}
+            teamMembers={profiles}
+            projects={projects}
+            tags={tags}
+            taskTags={[]}
+            createTask={handleCreateTask}
+            deleteTask={deleteTask}
+            refreshData={refreshData}
+          />
+        </ErrorBoundary>
       )}
 
       {/* Security Alert */}

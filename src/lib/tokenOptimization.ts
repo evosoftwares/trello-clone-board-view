@@ -27,8 +27,8 @@ const DEFAULT_CONFIG: OptimizationConfig = {
 
 class TokenOptimizationManager {
   private config: OptimizationConfig;
-  private pendingRequests: Map<string, Promise<any>>;
-  private batchQueue: Array<{ key: string; resolver: Function }>;
+  private pendingRequests: Map<string, Promise<unknown>>;
+  private batchQueue: Array<{ key: string; resolver: (value: unknown) => void }>;
   private debounceTimers: Map<string, NodeJS.Timeout>;
   private metrics: {
     hits: number;
@@ -121,9 +121,9 @@ class TokenOptimizationManager {
     }
   }
 
-  private async executeBatchedRequests(type: string, requests: Array<{ key: string; resolver: Function }>) {
+  private async executeBatchedRequests(type: string, requests: Array<{ key: string; resolver: (value: unknown) => void }>) {
     switch (type) {
-      case 'kanban':
+      case 'kanban': {
         // Batch kanban data fetching
         const projectIds = requests.map(r => r.key.split(':')[1]).filter(Boolean);
         if (projectIds.length > 0) {
@@ -133,8 +133,9 @@ class TokenOptimizationManager {
           });
         }
         break;
+      }
       
-      case 'tasks':
+      case 'tasks': {
         // Batch task fetching
         const taskProjectIds = requests.map(r => r.key.split(':')[1]).filter(Boolean);
         if (taskProjectIds.length > 0) {
@@ -144,6 +145,7 @@ class TokenOptimizationManager {
           });
         }
         break;
+      }
         
       default:
         // Fallback: execute individually
@@ -217,7 +219,7 @@ class TokenOptimizationManager {
     };
   }
 
-  private estimateMemoryUsage(queries: any[]): number {
+  private estimateMemoryUsage(queries: unknown[]): number {
     // Rough estimate of memory usage
     return queries.reduce((total, query) => {
       const data = query.state.data;

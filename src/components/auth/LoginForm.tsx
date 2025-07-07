@@ -29,6 +29,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onToggleMode }) => {
       const { error } = await signIn(email, password);
       
       if (error) {
+        console.error('Login error:', error);
         toast({
           title: "Erro no login",
           description: error.message === 'Invalid login credentials' 
@@ -36,19 +37,21 @@ const LoginForm: React.FC<LoginFormProps> = ({ onToggleMode }) => {
             : error.message,
           variant: "destructive"
         });
+        setLoading(false);
       } else {
         toast({
           title: "Login realizado com sucesso!",
           description: "Bem-vindo de volta."
         });
+        // Não definir loading como false aqui, deixar o AuthContext cuidar
       }
     } catch (err) {
+      console.error('Login exception:', err);
       toast({
         title: "Erro inesperado",
         description: "Tente novamente em alguns instantes.",
         variant: "destructive"
       });
-    } finally {
       setLoading(false);
     }
   };
